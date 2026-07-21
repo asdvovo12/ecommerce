@@ -1,0 +1,50 @@
+{
+  "expo": {
+    "name": "e-commerce",
+    "slug": "e-commerce",
+    "scheme": "ecommerceapp",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.ecommerce.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "This app uses the camera to scan your credit card during checkout.",
+        "NSPhotoLibraryUsageDescription": "This app needs access to your photos so you can set a profile picture.",
+        "NSLocationWhenInUseUsageDescription": "This app uses your location to help fill in your shipping address."
+      }
+    },
+    "android": {
+      "package": "com.ecommerce.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "edgeToEdgeEnabled": true,
+      "permissions": [
+        "CAMERA",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-camera",
+      "expo-image-picker",
+      "expo-location"
+    ]
+  }
+}
