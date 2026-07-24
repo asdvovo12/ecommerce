@@ -1,7 +1,5 @@
 // screens/SignIn.js
-
 import React, { useState } from 'react';
-
 import {
     View,
     Text,
@@ -13,20 +11,48 @@ import {
     ActivityIndicator,
     ScrollView,
 } from 'react-native';
-
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useNavigation } from '@react-navigation/native';
-
+import AsyncStorage from '@react-native-async-storage/async-storage'; // ✅ جديد
 import { supabase } from './supabaseClient';
 import { signInWithProvider } from './services/socialAuth';
 
 const SignInScreen = () => {
     const navigation = useNavigation();
-
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [passwordVisible, setPasswordVisible] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
+
+    // ✅ helper بيحفظ حالة الدخول عشان السبلاش و Profile يعرفوا اليوزر مسجل
+    const persistLoginState = async (userEmail, meta = {}) => {
+        try {
+            const normalizedEmail = (userEmail || '').toLowerCase().trim();
+            await AsyncStorage.setItem('isLoggedIn', 'true');
+            if (normalizedEmail) {
+                await AsyncStorage.setItem('loggedInEmail', normalizedEmail);
+                // نتأكد إن فيه ريكورد لليوزر عشان Profile يقرأ منه
+                const existing = await AsyncStorage.getItem(`user:${normalizedEmail}`);
+                if (!existing) {
+                    await AsyncStorage.setItem(
+                        `user:${normalizedEmail}`,
+                        JSON.stringify({
+                            email: normalizedEmail,
+                            username:
+                                meta.username ||
+                                meta.full_name ||
+                                meta.name ||
+                                '',
+                            region: '',
+                            birthDate: '',
+                        })
+                    );
+                }
+            }
+        } catch (e) {
+            console.error('Error persisting login state:', e);
+        }
+    };
 
     const handleSignIn = async () => {
         if (isLoading) return;
@@ -40,7 +66,6 @@ const SignInScreen = () => {
         }
 
         setIsLoading(true);
-
         try {
             const { data, error } =
                 await supabase.auth.signInWithPassword({
@@ -64,11 +89,16 @@ const SignInScreen = () => {
                 } else {
                     Alert.alert('Sign In Error', error.message);
                 }
-
                 return;
             }
 
             if (data?.session) {
+                // ✅ نحفظ حالة الدخول قبل الانتقال
+                await persistLoginState(
+                    data.user?.email || email,
+                    data.user?.user_metadata || {}
+                );
+
                 navigation.reset({
                     index: 0,
                     routes: [{ name: 'Dashboard' }],
@@ -101,11 +131,15 @@ const SignInScreen = () => {
         if (isLoading) return;
 
         setIsLoading(true);
-
         try {
             const session = await signInWithProvider(provider);
-
             if (session) {
+                // ✅ نحفظ حالة الدخول للسوشيال كمان
+                await persistLoginState(
+                    session.user?.email || '',
+                    session.user?.user_metadata || {}
+                );
+
                 navigation.reset({
                     index: 0,
                     routes: [{ name: 'Dashboard' }],
@@ -157,7 +191,6 @@ const SignInScreen = () => {
                     source={require('./assets/logo.png')}
                     style={styles.logo}
                 />
-
                 <Text style={styles.title}>
                     Login to your Account
                 </Text>
@@ -195,7 +228,6 @@ const SignInScreen = () => {
                         autoCorrect={false}
                         editable={!isLoading}
                     />
-
                     <TouchableOpacity
                         style={styles.eyeIcon}
                         onPress={() =>
@@ -291,7 +323,6 @@ const SignInScreen = () => {
                     <Text style={styles.footerText}>
                         Don't have an account?
                     </Text>
-
                     <TouchableOpacity
                         onPress={() => {
                             if (!isLoading) {
@@ -316,7 +347,6 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         backgroundColor: '#FFFFFF',
     },
-
     container: {
         flex: 1,
         paddingHorizontal: 25,
@@ -325,7 +355,6 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         backgroundColor: '#FFFFFF',
     },
-
     header: {
         position: 'absolute',
         top: 40,
@@ -335,11 +364,9 @@ const styles = StyleSheet.create({
         alignItems: 'flex-start',
         zIndex: 1,
     },
-
     backButton: {
         padding: 10,
     },
-
     logo: {
         width: 130,
         height: 130,
@@ -347,7 +374,6 @@ const styles = StyleSheet.create({
         alignSelf: 'center',
         resizeMode: 'contain',
     },
-
     title: {
         marginBottom: 30,
         color: '#333333',
@@ -355,12 +381,10 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
         textAlign: 'center',
     },
-
     inputContainer: {
         width: '100%',
         marginBottom: 18,
     },
-
     input: {
         width: '100%',
         paddingVertical: 14,
@@ -372,12 +396,10 @@ const styles = StyleSheet.create({
         color: '#333333',
         fontSize: 16,
     },
-
     inputDisabled: {
         backgroundColor: '#EEEEEE',
         color: '#999999',
     },
-
     passwordContainer: {
         position: 'relative',
         width: '100%',
@@ -385,12 +407,10 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
     },
-
     passwordInput: {
         flex: 1,
         paddingRight: 50,
     },
-
     eyeIcon: {
         position: 'absolute',
         right: 0,
@@ -400,19 +420,16 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         zIndex: 1,
     },
-
     forgotPasswordContainer: {
         alignSelf: 'flex-end',
         marginRight: 5,
         marginBottom: 25,
     },
-
     forgotPasswordText: {
         color: '#007AFF',
         fontSize: 14,
         fontWeight: '600',
     },
-
     mainButton: {
         width: '100%',
         minHeight: 50,
@@ -422,21 +439,17 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
-
     signInButton: {
         backgroundColor: '#FFDD00',
     },
-
     mainButtonText: {
         color: '#000000',
         fontSize: 17,
         fontWeight: 'bold',
     },
-
     buttonDisabled: {
         opacity: 0.6,
     },
-
     orText: {
         marginVertical: 30,
         color: '#777777',
@@ -444,14 +457,12 @@ const styles = StyleSheet.create({
         fontWeight: '500',
         textAlign: 'center',
     },
-
     socialButtonsContainer: {
         flexDirection: 'row',
         justifyContent: 'center',
         alignItems: 'center',
         marginBottom: 30,
     },
-
     socialButton: {
         width: 60,
         height: 60,
@@ -463,7 +474,6 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         overflow: 'hidden',
-
         shadowColor: '#000000',
         shadowOffset: {
             width: 0,
@@ -473,21 +483,18 @@ const styles = StyleSheet.create({
         shadowRadius: 1.5,
         elevation: 2,
     },
-
     googleIcon: {
         width: 60,
         height: 60,
         borderRadius: 30,
         resizeMode: 'contain',
     },
-
     facebookIcon: {
         width: 87,
         height: 87,
         borderRadius: 34,
         resizeMode: 'contain',
     },
-
     footerLinkContainer: {
         flexDirection: 'row',
         justifyContent: 'center',
@@ -495,12 +502,10 @@ const styles = StyleSheet.create({
         marginTop: 25,
         marginBottom: 10,
     },
-
     footerText: {
         color: '#666666',
         fontSize: 15,
     },
-
     footerLink: {
         marginLeft: 5,
         color: '#007AFF',
