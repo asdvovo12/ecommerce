@@ -36,6 +36,18 @@ export const SUPABASE_URL =
 export const SUPABASE_ANON_KEY =
   process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || PUBLIC.SUPABASE_ANON_KEY;
 
+// ---- Demo mode ----  ⬅️ ده الجديد
+// When true, the app completes checkout WITHOUT calling Stripe/PayPal.
+// The order is saved (Supabase if signed in, otherwise locally on the device)
+// so the whole flow Cart -> Payment -> Address -> Order works with no keys.
+// The buyer of the app just sets EXPO_PUBLIC_DEMO_MODE=false (and fills the
+// real keys + hosts server.js) to switch to real charges.
+const rawDemoFlag = process.env.EXPO_PUBLIC_DEMO_MODE;
+export const DEMO_MODE =
+  typeof rawDemoFlag === 'string'
+    ? rawDemoFlag.toLowerCase() === 'true'
+    : /localhost|10\.0\.2\.2|127\.0\.0\.1/.test(API_BASE_URL); // no real server configured yet
+
 export const EMAILJS = {
   serviceId: process.env.EXPO_PUBLIC_EMAILJS_SERVICE_ID || PUBLIC.EMAILJS_SERVICE_ID,
   templateId: process.env.EXPO_PUBLIC_EMAILJS_TEMPLATE_ID || PUBLIC.EMAILJS_TEMPLATE_ID,
@@ -44,6 +56,7 @@ export const EMAILJS = {
 
 export default {
   API_BASE_URL,
+  DEMO_MODE,
   STRIPE_PUBLISHABLE_KEY,
   SUPABASE_URL,
   SUPABASE_ANON_KEY,

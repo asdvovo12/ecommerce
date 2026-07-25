@@ -1,7 +1,86 @@
 // services/orders.js
 // Persists orders to Supabase and decrements stock atomically.
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../supabaseClient';
+
+const LOCAL_ORDERS_KEY = 'localOrders';
+
+/**
+ * Save an order on the device only (used in DEMO_MODE, or when Supabase is
+ * unreachable / the user is not signed in). Same shape as a Supabase order row
+ * so Order.js can render it without any change.
+ */
+export async function createLocalOrder({
+  cartItems = [],
+  shippingAddress = null,
+  paymentMethod = 'demo',
+  paymentRef = null,
+  subtotal = 0,
+  shipping = 0,
+  tax = 0,
+  total = 0,
+  currency = 'USD',
+}) {
+  const now = new Date().toISOString();
+  const orderId = `demo-${Date.now()}`;
+
+  const items = cartItems.map((item, index) => ({
+    id: `${orderId}-${index}`,
+    order_id: orderId,
+    product_id: isUuid(item.id) ? item.id : null,
+    name: item.name,
+    storage: item.storage || null,
+    unit_price: Number(
+      (Number(item.price || 0) * (1 - Number(item.discount || 0))).toFixed(2)
+    ),
+    quantity: item.quantity || 1,
+    image: typeof item.image === 'string' ? item.image : null,
+  }));
+
+  const order = {
+    id: orderId,
+    created_at: now,
+    status: 'paid',
+    payment_method: paymentMethod,
+    payment_ref: paymentRef,
+    currency,
+    subtotal,
+    shipping,
+    tax,
+    total,
+    shipping_address: shippingAddress,
+    is_local: true,
+    order_items: items,
+  };
+
+  try {
+    const raw = await AsyncStorage.getItem(LOCAL_ORDERS_KEY);
+    const list = raw ? JSON.parse(raw) : [];
+    list.unshift(order);
+    await AsyncStorage.setItem(LOCAL_ORDERS_KEY, JSON.stringify(list.slice(0, 50)));
+  } catch (e) {
+    console.warn('Failed to save local order:', e && e.message);
+  }
+
+  let userEmail = null;
+  try {
+    const { data } = await supabase.auth.getUser();
+    userEmail = data?.user?.email || null;
+  } catch (e) {}
+
+  return { order, items, userEmail };
+}
+
+/** Read the orders that were saved on the device. */
+export async function getLocalOrders() {
+  try {
+    const raw = await AsyncStorage.getItem(LOCAL_ORDERS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    return [];
+  }
+}
 
 /**
  * Create an order with its items, then decrement stock for each product.
@@ -91,12 +170,25 @@ export async function createOrder({
  * Fetch the current user's orders (most recent first) with their items.
  */
 export async function getMyOrders() {
-  const { data, error } = await supabase
-    .from('orders')
-    .select('*, order_items(*)')
-    .order('created_at', { ascending: false });
-  if (error) throw error;
-  return data || [];
+  const local = await getLocalOrders();
+
+  let remote = [];
+  try {
+    const { data, error } = await supabase
+      .from('orders')
+      .select('*, order_items(*)')
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    remote = data || [];
+  } catch (e) {
+    // Not signed in / tables missing / offline: still show local orders
+    console.warn('Remote orders unavailable:', e && e.message);
+    if (local.length === 0) throw e;
+  }
+
+  return [...local, ...remote].sort(
+    (a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)
+  );
 }
 
 function isUuid(value) {

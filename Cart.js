@@ -10,17 +10,32 @@ import {
   SafeAreaView,
   Alert,
 } from 'react-native';
-import IconIo from 'react-native-vector-icons/Ionicons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useDarkMode } from './DarkModeContext';
 import { useTranslation } from 'react-i18next';
 import './i18n';
 
+/*
+  ✅ لا نستخدم أي أيقونات خطوط (Ionicons / vector-icons) في هذه الشاشة.
+  السبب: خط الأيقونات لا يتم تحميله في هذا المشروع (metro.config.js يعمل shim
+  لموديولات url/events/buffer اللي بيعتمد عليها expo-font/expo-asset)، فالأيقونة
+  كانت بترسم فاضية بدون أي error — وده اللي كان مخفي زرار الحذف و + و −.
+  الحل: رسم الرموز بنصوص عادية (←  −  +  ✕) وهي دائمًا بتظهر.
+*/
+const Glyph = ({ char, size = 20, color = '#333', style }) => (
+  <Text
+    allowFontScaling={false}
+    style={[{ fontSize: size, lineHeight: size + 4, color, textAlign: 'center' }, style]}
+  >
+    {char}
+  </Text>
+);
+
 /* ✅ يمنع كراش: Value for uri cannot be cast from Double to String */
 const toImageSource = (img) => {
   if (img === null || img === undefined) return null;
-  if (typeof img === 'number') return img;                 // require('./assets/x.png')
+  if (typeof img === 'number') return img; // require('./assets/x.png')
   if (typeof img === 'string') return img ? { uri: img } : null;
   if (typeof img === 'object' && typeof img.uri === 'string') return { uri: img.uri };
   return null;
@@ -97,7 +112,8 @@ const MyCart = () => {
   const calculateTotalDiscount = () =>
     cartItems.reduce(
       (total, item) =>
-        total + (Number(item.price) || 0) * (Number(item.discount) || 0) * (Number(item.quantity) || 0),
+        total +
+        (Number(item.price) || 0) * (Number(item.discount) || 0) * (Number(item.quantity) || 0),
       0
     );
 
@@ -115,18 +131,36 @@ const MyCart = () => {
     });
   };
 
+  const handleDeleteItem = (itemId, itemStorage) => {
+    updateAndPersist((prev) => prev.filter((item) => !sameItem(item, itemId, itemStorage)));
+  };
+
+  const confirmDelete = (item) => {
+    Alert.alert(
+      t('Remove item') || 'Remove item',
+      item?.name ? `${item.name}` : '',
+      [
+        { text: t('Cancel') || 'Cancel', style: 'cancel' },
+        {
+          text: t('Delete') || 'Delete',
+          style: 'destructive',
+          onPress: () => handleDeleteItem(item.id, item.storage),
+        },
+      ],
+      { cancelable: true }
+    );
+  };
+
   const handleQuantityChange = (itemId, itemStorage, newQuantity) => {
     if (newQuantity <= 0) {
       handleDeleteItem(itemId, itemStorage);
       return;
     }
     updateAndPersist((prev) =>
-      prev.map((item) => (sameItem(item, itemId, itemStorage) ? { ...item, quantity: newQuantity } : item))
+      prev.map((item) =>
+        sameItem(item, itemId, itemStorage) ? { ...item, quantity: newQuantity } : item
+      )
     );
-  };
-
-  const handleDeleteItem = (itemId, itemStorage) => {
-    updateAndPersist((prev) => prev.filter((item) => !sameItem(item, itemId, itemStorage)));
   };
 
   /* ---------- التنقل ---------- */
@@ -149,6 +183,7 @@ const MyCart = () => {
     const source = toImageSource(item.image);
     const price = Number(item.price) || 0;
     const discount = Number(item.discount) || 0;
+    const qty = Number(item.quantity) || 1;
 
     return (
       <View style={[styles.cartItemContainer, isDarkMode && styles.cartItemContainerDark]}>
@@ -156,12 +191,14 @@ const MyCart = () => {
           <Image source={source} style={styles.cartItemImage} />
         ) : (
           <View style={[styles.cartItemImage, styles.imagePlaceholder]}>
-            <IconIo name="image-outline" size={24} color="#999" />
+            <Glyph char="🖼" size={24} color="#999" />
           </View>
         )}
 
         <View style={styles.cartItemDetails}>
-          <Text style={[styles.cartItemName, isDarkMode && styles.cartItemNameDark]}>{item.name}</Text>
+          <Text style={[styles.cartItemName, isDarkMode && styles.cartItemNameDark]}>
+            {item.name}
+          </Text>
 
           {!!item.storage && (
             <Text style={[styles.cartItemDescription, isDarkMode && styles.cartItemDescriptionDark]}>
@@ -195,47 +232,46 @@ const MyCart = () => {
             </Text>
           )}
 
-          <View style={[styles.quantityControlContainer, isDarkMode && styles.quantityControlContainerDark]}>
+          <View
+            style={[styles.quantityControlContainer, isDarkMode && styles.quantityControlContainerDark]}
+          >
             <TouchableOpacity
-              onPress={() => handleQuantityChange(item.id, item.storage, (Number(item.quantity) || 1) - 1)}
+              onPress={() => handleQuantityChange(item.id, item.storage, qty - 1)}
               style={[
                 styles.quantityButton,
-                item.quantity <= 1 && styles.disabledButton,
                 { backgroundColor: isDarkMode ? '#404040' : '#424242' },
+                qty <= 1 && styles.disabledButton,
               ]}
-              disabled={item.quantity <= 1}
+              disabled={qty <= 1}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
-              <IconIo
-                name="remove-outline"
+              <Glyph
+                char="−"
                 size={20}
-                color={
-                  item.quantity <= 1
-                    ? isDarkMode
-                      ? '#A9A9A9'
-                      : '#808080'
-                    : isDarkMode
-                    ? '#E0E0E0'
-                    : 'white'
-                }
+                color={qty <= 1 ? '#9e9e9e' : isDarkMode ? '#E0E0E0' : '#FFFFFF'}
               />
             </TouchableOpacity>
 
-            <Text style={[styles.quantityText, isDarkMode && styles.quantityTextDark]}>{item.quantity}</Text>
+            <Text style={[styles.quantityText, isDarkMode && styles.quantityTextDark]}>{qty}</Text>
 
             <TouchableOpacity
-              onPress={() => handleQuantityChange(item.id, item.storage, (Number(item.quantity) || 1) + 1)}
+              onPress={() => handleQuantityChange(item.id, item.storage, qty + 1)}
               style={[styles.quantityButton, { backgroundColor: isDarkMode ? '#404040' : '#424242' }]}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
-              <IconIo name="add-outline" size={20} color={isDarkMode ? '#E0E0E0' : 'white'} />
+              <Glyph char="+" size={20} color={isDarkMode ? '#E0E0E0' : '#FFFFFF'} />
             </TouchableOpacity>
           </View>
         </View>
 
+        {/* ✅ زرار الحذف — دائرة حمراء واضحة بنص، مش أيقونة خط */}
         <TouchableOpacity
-          onPress={() => handleDeleteItem(item.id, item.storage)}
-          style={styles.deleteButton}
+          onPress={() => confirmDelete(item)}
+          style={[styles.deleteButton, isDarkMode && styles.deleteButtonDark]}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          accessibilityLabel="delete-item"
         >
-          <IconIo name="trash" size={20} color="red" />
+          <Glyph char="✕" size={18} color="#E53935" />
         </TouchableOpacity>
       </View>
     );
@@ -245,7 +281,7 @@ const MyCart = () => {
     <SafeAreaView style={[styles.container, isDarkMode && styles.containerDark]}>
       <View style={[styles.header, isDarkMode && styles.headerDark]}>
         <TouchableOpacity style={styles.backButton} onPress={handleBackPress}>
-          <IconIo name="arrow-back" size={24} color={isDarkMode ? '#E0E0E0' : '#333'} />
+          <Glyph char="←" size={24} color={isDarkMode ? '#E0E0E0' : '#333'} />
         </TouchableOpacity>
         <Text style={[styles.title, isDarkMode && styles.titleDark]}>{t('Cart')}</Text>
         <View style={{ width: 40 }} />
@@ -270,7 +306,9 @@ const MyCart = () => {
 
       <View style={[styles.summaryContainer, isDarkMode && styles.summaryContainerDark]}>
         <View style={styles.summaryRow}>
-          <Text style={[styles.summaryLabel, isDarkMode && styles.summaryLabelDark]}>{t('Subtotal')}:</Text>
+          <Text style={[styles.summaryLabel, isDarkMode && styles.summaryLabelDark]}>
+            {t('Subtotal')}:
+          </Text>
           <Text style={[styles.summaryValue, isDarkMode && styles.summaryValueDark]}>
             ${calculateSubtotal().toFixed(2)}
           </Text>
@@ -289,7 +327,9 @@ const MyCart = () => {
 
         {calculateTotalDiscount() > 0 && (
           <View style={styles.summaryRow}>
-            <Text style={[styles.summaryLabel, isDarkMode && styles.summaryLabelDark]}>{t('Discount')}:</Text>
+            <Text style={[styles.summaryLabel, isDarkMode && styles.summaryLabelDark]}>
+              {t('Discount')}:
+            </Text>
             <Text style={[styles.summaryValue, isDarkMode && styles.summaryValueDark]}>
               -${calculateTotalDiscount().toFixed(2)}
             </Text>
@@ -336,7 +376,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
   },
   headerDark: { backgroundColor: '#1E1E1E', borderBottomColor: '#333' },
-  backButton: { paddingHorizontal: 8 },
+  backButton: { paddingHorizontal: 8, minWidth: 40 },
   title: { fontSize: 20, fontWeight: 'bold', flex: 1, textAlign: 'center' },
   titleDark: { color: '#E0E0E0' },
   list: { flex: 1 },
@@ -359,14 +399,24 @@ const styles = StyleSheet.create({
   },
   cartItemContainerDark: { backgroundColor: '#282828', elevation: 0, shadowOpacity: 0 },
   cartItemImage: { width: 80, height: 80, marginRight: 16, resizeMode: 'contain' },
-  imagePlaceholder: { alignItems: 'center', justifyContent: 'center', backgroundColor: '#eee', borderRadius: 8 },
+  imagePlaceholder: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#eee',
+    borderRadius: 8,
+  },
   cartItemDetails: { flex: 1 },
   cartItemName: { fontSize: 16, fontWeight: 'bold', marginBottom: 4 },
   cartItemNameDark: { color: '#E0E0E0' },
   cartItemDescription: { fontSize: 14, color: '#666', marginBottom: 8 },
   cartItemDescriptionDark: { color: '#A9A9A9' },
   priceContainer: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
-  originalPrice: { fontSize: 14, color: '#999', textDecorationLine: 'line-through', marginRight: 8 },
+  originalPrice: {
+    fontSize: 14,
+    color: '#999',
+    textDecorationLine: 'line-through',
+    marginRight: 8,
+  },
   originalPriceDark: { color: '#707070' },
   cartItemPrice: { fontSize: 16, fontWeight: 'bold' },
   cartItemPriceDark: { color: '#E0E0E0' },
@@ -383,12 +433,42 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   quantityControlContainerDark: { backgroundColor: '#303030' },
-  quantityButton: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginHorizontal: 0 },
-  disabledButton: { backgroundColor: '#ddd' },
-  quantityText: { fontSize: 16, fontWeight: 'bold', marginHorizontal: 8, color: 'black', minWidth: 20, textAlign: 'center' },
+  quantityButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: 0,
+  },
+  disabledButton: { opacity: 0.5 },
+  quantityText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginHorizontal: 8,
+    color: 'black',
+    minWidth: 20,
+    textAlign: 'center',
+  },
   quantityTextDark: { color: '#E0E0E0' },
-  deleteButton: { padding: 10 },
-  summaryContainer: { padding: 16, backgroundColor: 'white', borderTopWidth: 1, borderTopColor: '#ddd' },
+  deleteButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    borderWidth: 1,
+    borderColor: '#E53935',
+    backgroundColor: '#FFEBEE',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
+  },
+  deleteButtonDark: { backgroundColor: '#3A1F1F', borderColor: '#EF5350' },
+  summaryContainer: {
+    padding: 16,
+    backgroundColor: 'white',
+    borderTopWidth: 1,
+    borderTopColor: '#ddd',
+  },
   summaryContainerDark: { backgroundColor: '#1E1E1E', borderTopColor: '#333' },
   summaryRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
   summaryLabel: { fontSize: 16, color: '#333' },

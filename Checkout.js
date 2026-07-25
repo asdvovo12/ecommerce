@@ -19,7 +19,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useStripe } from '@stripe/stripe-react-native';
 import { createPayPalPayment, getPayPalPaymentStatus } from './services/paypal';
 import { createPaymentIntent } from './services/stripe';
-import { createOrder } from './services/orders';
+import { createOrder, createLocalOrder } from './services/orders';   // ⬅️ اتعدل
+import { DEMO_MODE } from './config';                                 // ⬅️ جديد
 import { sendOrderReceipt } from './services/email';
 import './i18n';
 
@@ -155,7 +156,26 @@ const CheckoutScreen = () => {
     try {
       let orderResult;
 
-      if (method === 'paypal') {
+      if (DEMO_MODE) {
+        /* ✅ وضع العرض/الديمو: من غير مفاتيح Stripe/PayPal ولا سيرفر شغال.
+           بيسجل الأوردر (على Supabase لو المستخدم مسجّل دخول، وإلا على الجهاز)
+           عشان الفلو يكمل لحد شاشة Order. المشتري بيقفله بـ
+           EXPO_PUBLIC_DEMO_MODE=false بعد ما يحط مفاتيحه. */
+        const orderPayload = {
+          cartItems,
+          shippingAddress: savedAddress,
+          paymentMethod: paymentInfo.cardType || 'demo',
+          paymentRef: `demo-${Date.now()}`,
+          subtotal, shipping, tax, total: grandTotal, currency: 'USD',
+        };
+
+        try {
+          orderResult = await createOrder(orderPayload);
+        } catch (e) {
+          console.warn('Demo order fell back to local storage:', e && e.message);
+          orderResult = await createLocalOrder(orderPayload);
+        }
+      } else if (method === 'paypal') {
         const { approvalUrl, paymentId } = await createPayPalPayment(grandTotal, 'USD');
         await WebBrowser.openBrowserAsync(approvalUrl);
 
