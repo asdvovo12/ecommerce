@@ -31,13 +31,13 @@ import PopularProductsScreen from './PopularProducts';
 import NewArrivalsScreen from './NewArrivals';
 import NotificationsScreen from './Notifications';
 import Dashboard from './Dashboard';
+
 import sales from './assets/sales.png';
 import salesImage from './assets/sign.png';
 import './i18n';
 
 const Stack = createNativeStackNavigator();
 
-// دالة placeholder للتقرير لو لسه مش متعمل
 const Report = () => (
   <View>
     <Text>Report Screen Placeholder</Text>
@@ -113,35 +113,30 @@ const FirstPage = ({ navigation }) => {
 
 // --- Main App ---
 const App = () => {
-  const [isLoading, setIsLoading] = useState(true);      // بيفضل true طول ما بنـ check
+  const [isLoading, setIsLoading] = useState(true);
   const [initialRoute, setInitialRoute] = useState('FirstPage');
+
+  // ❌ اتشال تحميل الخطوط اليدوي بالكامل.
+  // @expo/vector-icons بيحمّل خطوطه لوحده، والتحميل اليدوي هو اللي كان بيرمي:
+  // "Font not found /data/user/0/host.exp.exponent/cache/ExponentAsset-....ttf"
 
   useEffect(() => {
     const bootstrap = async () => {
       let route = 'FirstPage';
       try {
-        // ✅ نتأكد الأول هل اليوزر مسجل دخول ولا لأ
         const loggedIn = await AsyncStorage.getItem('isLoggedIn');
-        // (اختياري) ممكن تستخدم توكن بدل الفلاج:
-        // const token = await AsyncStorage.getItem('userToken');
-        if (loggedIn === 'true') {
-          route = 'Dashboard';   // مسجّل → يدخل الداشبورد علطول
-        }
+        if (loggedIn === 'true') route = 'Dashboard';
       } catch (e) {
         console.error('Auth check error:', e);
       }
-
-      // نخلي السبلاش يظهر مدة بسيطة قبل ما ننتقل
       setTimeout(() => {
         setInitialRoute(route);
         setIsLoading(false);
       }, 2500);
     };
-
     bootstrap();
   }, []);
 
-  // ✅ طول ما بنتأكد → اعرض السبلاش
   if (isLoading) {
     return (
       <SafeAreaProvider>
@@ -150,7 +145,6 @@ const App = () => {
     );
   }
 
-  // ✅ بعد التأكد → افتح الـ Navigator على الشاشة الصح
   return (
     <SafeAreaProvider>
       <DarkModeProvider>

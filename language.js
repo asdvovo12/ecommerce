@@ -1,17 +1,18 @@
-// ChangeLanguageScreen.js
-import React, { useState, useEffect } from 'react';
+// ChangeLanguageScreen.js  (language.js)
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { AntDesign } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
+import i18n, { LANGUAGE_KEY, changeAppLanguage } from './i18n';
 
 const ChangeLanguageScreen = () => {
-    const [selectedLanguage, setSelectedLanguage] = useState(null);
-    const [initialLanguage, setInitialLanguage] = useState(null);
+    const [selectedLanguage, setSelectedLanguage] = useState(i18n.language || 'en');
+    const [initialLanguage, setInitialLanguage] = useState(i18n.language || 'en');
     const [isDarkMode, setIsDarkMode] = useState(false);
     const navigation = useNavigation();
-    const { t, i18n } = useTranslation();
+    const { t } = useTranslation();
 
     const languages = ['ar', 'en'];
     const languageNames = {
@@ -24,15 +25,15 @@ const ChangeLanguageScreen = () => {
             const darkModeValue = await AsyncStorage.getItem('darkMode');
             setIsDarkMode(darkModeValue === 'true');
 
-            const storedLanguage = await AsyncStorage.getItem('selectedLanguage');
-            const languageToUse = storedLanguage || 'en';
+            const storedLanguage = await AsyncStorage.getItem(LANGUAGE_KEY);
+            const languageToUse = storedLanguage || i18n.language || 'en';
 
             setSelectedLanguage(languageToUse);
             setInitialLanguage(languageToUse);
             console.log('Loaded language:', languageToUse);
         } catch (error) {
             console.error('Error loading settings:', error);
-            Alert.alert(t("Error"), t("Failed to load settings."));
+            Alert.alert(t('Error'), t('Failed to load settings.'));
         }
     };
 
@@ -50,20 +51,19 @@ const ChangeLanguageScreen = () => {
         if (!selectedLanguage) return;
 
         try {
-            await AsyncStorage.setItem('selectedLanguage', selectedLanguage);
-            await i18n.changeLanguage(selectedLanguage);
+            // بتغيّر اللغة وتحفظها في نفس المفتاح المستخدم في i18n.js
+            await changeAppLanguage(selectedLanguage);
+            setInitialLanguage(selectedLanguage);
             console.log('Language saved successfully:', selectedLanguage);
             navigation.goBack();
         } catch (error) {
             console.error('Error saving language preference:', error);
-            Alert.alert(t("Error"), t("Could not save language preference."));
+            Alert.alert(t('Error'), t('Could not save language preference.'));
         }
     };
 
     const handleGoBack = () => {
-        if (selectedLanguage !== initialLanguage) {
-            i18n.changeLanguage(initialLanguage);
-        }
+        // اللغة مش بتتغير غير بعد الحفظ، فمفيش حاجة نرجّعها
         navigation.goBack();
     };
 
@@ -76,25 +76,50 @@ const ChangeLanguageScreen = () => {
                 >
                     <AntDesign name="arrowleft" size={24} color={isDarkMode ? 'white' : 'black'} />
                 </TouchableOpacity>
-                <Text style={[styles.headerTitle, { flex: 1, textAlign: 'center' }, isDarkMode && styles.darkHeaderTitle]}>{t('Change Language')}</Text>
-                <View style={{ width: 24 + 10 }} />
+                <Text
+                    style={[
+                        styles.headerTitle,
+                        { flex: 1, textAlign: 'center' },
+                        isDarkMode && styles.darkHeaderTitle,
+                    ]}
+                >
+                    {t('Change Language')}
+                </Text>
+                <View style={{ width: 34 }} />
             </View>
 
-            <ScrollView style={[styles.languageList, { marginTop: 40 }, isDarkMode && styles.darkmodeContainer]}>
+            <ScrollView
+                style={[
+                    styles.languageList,
+                    { marginTop: 40 },
+                    isDarkMode && styles.darkmodeContainer,
+                ]}
+            >
                 {languages.map((languageCode) => (
                     <TouchableOpacity
                         key={languageCode}
                         style={[styles.languageItem, isDarkMode && styles.darkmodeContainer]}
                         onPress={() => handleLanguageSelection(languageCode)}
                     >
-                        <View style={[
-                            styles.radioButton,
-                            selectedLanguage === languageCode && styles.selectedRadioButton,
-                            isDarkMode && styles.darkRadioButton
-                        ]}>
-                            {selectedLanguage === languageCode && <View style={[styles.radioButtonInner, isDarkMode && styles.darkRadioButtonInner]} />}
+                        <View
+                            style={[
+                                styles.radioButton,
+                                selectedLanguage === languageCode && styles.selectedRadioButton,
+                                isDarkMode && styles.darkRadioButton,
+                            ]}
+                        >
+                            {selectedLanguage === languageCode && (
+                                <View
+                                    style={[
+                                        styles.radioButtonInner,
+                                        isDarkMode && styles.darkRadioButtonInner,
+                                    ]}
+                                />
+                            )}
                         </View>
-                        <Text style={[styles.languageText, isDarkMode && styles.darkText]}>{languageNames[languageCode]}</Text>
+                        <Text style={[styles.languageText, isDarkMode && styles.darkText]}>
+                            {languageNames[languageCode]}
+                        </Text>
                     </TouchableOpacity>
                 ))}
             </ScrollView>
@@ -104,7 +129,7 @@ const ChangeLanguageScreen = () => {
                 onPress={handleSave}
             >
                 <Text style={[styles.saveButtonText, isDarkMode && styles.darkSaveButtonText]}>
-                    {t("Save")}
+                    {t('Save')}
                 </Text>
             </TouchableOpacity>
         </View>
@@ -183,7 +208,7 @@ const styles = StyleSheet.create({
         color: 'black',
     },
     darkText: {
-        color: 'white'
+        color: 'white',
     },
     saveButton: {
         backgroundColor: '#ffdd00',
