@@ -1,4 +1,4 @@
-// Cart.js (Fully Refactored - no nested VirtualizedList)
+// Cart.js
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
@@ -17,81 +17,87 @@ import { useDarkMode } from './DarkModeContext';
 import { useTranslation } from 'react-i18next';
 import './i18n';
 
+/* ✅ يمنع كراش: Value for uri cannot be cast from Double to String */
+const toImageSource = (img) => {
+  if (img === null || img === undefined) return null;
+  if (typeof img === 'number') return img;                 // require('./assets/x.png')
+  if (typeof img === 'string') return img ? { uri: img } : null;
+  if (typeof img === 'object' && typeof img.uri === 'string') return { uri: img.uri };
+  return null;
+};
+
+const sameItem = (a, id, storage) =>
+  String(a.id) === String(id) && (a.storage ?? null) === (storage ?? null);
+
 const MyCart = () => {
   const navigation = useNavigation();
   const route = useRoute();
   const [cartItems, setCartItems] = useState([]);
+  const [loaded, setLoaded] = useState(false);
   const deliveryFee = 10;
   const { isDarkMode } = useDarkMode();
   const { t } = useTranslation();
 
-  // --- Data Loading and Saving ---
-  const loadCart = useCallback(async () => {
+  /* ---------- التخزين ---------- */
+  const persist = useCallback(async (list) => {
     try {
-      const savedCart = await AsyncStorage.getItem('cart');
-      if (savedCart) {
-        setCartItems(JSON.parse(savedCart));
+      if (list.length > 0) {
+        await AsyncStorage.setItem('cart', JSON.stringify(list));
+      } else {
+        await AsyncStorage.removeItem('cart');
       }
     } catch (error) {
-      console.error('Failed to load cart:', error);
+      console.error('Failed to save cart:', error);
     }
   }, []);
 
+  /* ---------- التحميل + دمج أي item جاي من route.params (توافق للخلف) ---------- */
+  const loadCart = useCallback(async () => {
+    try {
+      const saved = await AsyncStorage.getItem('cart');
+      let list = saved ? JSON.parse(saved) : [];
+
+      const newItem = route.params?.item;
+      if (newItem) {
+        const idx = list.findIndex((it) => sameItem(it, newItem.id, newItem.storage));
+        if (idx > -1) {
+          list[idx] = {
+            ...list[idx],
+            quantity: (Number(list[idx].quantity) || 0) + (Number(newItem.quantity) || 1),
+          };
+        } else {
+          list.push({ ...newItem, quantity: Number(newItem.quantity) || 1 });
+        }
+        await persist(list);
+        navigation.setParams({ item: undefined });
+      }
+
+      setCartItems(list);
+      setLoaded(true);
+    } catch (error) {
+      console.error('Failed to load cart:', error);
+      setLoaded(true);
+    }
+  }, [route.params?.item, navigation, persist]);
+
   useEffect(() => {
-    loadCart();
     const unsubscribe = navigation.addListener('focus', loadCart);
+    loadCart();
     return unsubscribe;
   }, [navigation, loadCart]);
 
-  useEffect(() => {
-    const saveCart = async () => {
-      try {
-        if (cartItems.length > 0) {
-          await AsyncStorage.setItem('cart', JSON.stringify(cartItems));
-        } else {
-          await AsyncStorage.removeItem('cart');
-        }
-      } catch (error) {
-        console.error('Failed to save cart:', error);
-      }
-    };
-    saveCart();
-  }, [cartItems]);
-
-  // --- Handling New Items from route.params ---
-  useEffect(() => {
-    const newItem = route.params?.item;
-    if (!newItem) return;
-
-    setCartItems((prevItems) => {
-      const existingIndex = prevItems.findIndex(
-        (item) => item.id === newItem.id && item.storage === newItem.storage
-      );
-      if (existingIndex > -1) {
-        const updated = [...prevItems];
-        updated[existingIndex] = {
-          ...updated[existingIndex],
-          quantity: updated[existingIndex].quantity + newItem.quantity,
-        };
-        return updated;
-      }
-      return [...prevItems, newItem];
-    });
-
-    navigation.setParams({ item: undefined });
-  }, [route.params?.item, navigation]);
-
-  // --- Calculation Functions ---
+  /* ---------- الحسابات ---------- */
   const calculateSubtotal = () =>
     cartItems.reduce((subtotal, item) => {
-      const discountedPrice = item.price * (1 - (item.discount || 0));
-      return subtotal + discountedPrice * item.quantity;
+      const price = Number(item.price) || 0;
+      const discounted = price * (1 - (Number(item.discount) || 0));
+      return subtotal + discounted * (Number(item.quantity) || 0);
     }, 0);
 
   const calculateTotalDiscount = () =>
     cartItems.reduce(
-      (totalDiscount, item) =>
-        totalDiscount + item.price * (item.discount || 0) * item.quantity,
+      (total, item) =>
+        total + (Number(item.price) || 0) * (Number(item.discount) || 0) * (Number(item.quantity) || 0),
       0
     );
 
@@ -100,28 +106,30 @@ const MyCart = () => {
     return subtotal > 0 ? subtotal + deliveryFee : 0;
   };
 
-  // --- Item Interaction Handlers ---
+  /* ---------- التعديلات (تحفظ فورًا) ---------- */
+  const updateAndPersist = (updater) => {
+    setCartItems((prev) => {
+      const next = updater(prev);
+      persist(next);
+      return next;
+    });
+  };
+
   const handleQuantityChange = (itemId, itemStorage, newQuantity) => {
     if (newQuantity <= 0) {
       handleDeleteItem(itemId, itemStorage);
       return;
     }
-    setCartItems((prevItems) =>
-      prevItems.map((item) =>
-        item.id === itemId && item.storage === itemStorage
-          ? { ...item, quantity: newQuantity }
-          : item
-      )
+    updateAndPersist((prev) =>
+      prev.map((item) => (sameItem(item, itemId, itemStorage) ? { ...item, quantity: newQuantity } : item))
     );
   };
 
   const handleDeleteItem = (itemId, itemStorage) => {
-    setCartItems((prevItems) =>
-      prevItems.filter((item) => !(item.id === itemId && item.storage === itemStorage))
-    );
+    updateAndPersist((prev) => prev.filter((item) => !sameItem(item, itemId, itemStorage)));
   };
 
-  // --- Navigation ---
+  /* ---------- التنقل ---------- */
   const handleCheckout = () => {
     if (cartItems.length > 0) {
       navigation.navigate('Checkout', {
@@ -136,68 +144,102 @@ const MyCart = () => {
 
   const handleBackPress = () => navigation.goBack();
 
-  // --- Rendering ---
-  const renderCartItem = ({ item }) => (
-    <View style={[styles.cartItemContainer, isDarkMode && styles.cartItemContainerDark]}>
-      <Image source={{ uri: item.image }} style={styles.cartItemImage} />
-      <View style={styles.cartItemDetails}>
-        <Text style={[styles.cartItemName, isDarkMode && styles.cartItemNameDark]}>{item.name}</Text>
-        <Text style={[styles.cartItemDescription, isDarkMode && styles.cartItemDescriptionDark]}>
-          {item.description}
-        </Text>
-        <View style={styles.priceContainer}>
-          {item.discount > 0 && (
-            <Text style={[styles.originalPrice, isDarkMode && styles.originalPriceDark]}>
-              ${item.price.toFixed(2)}
+  /* ---------- العرض ---------- */
+  const renderCartItem = ({ item }) => {
+    const source = toImageSource(item.image);
+    const price = Number(item.price) || 0;
+    const discount = Number(item.discount) || 0;
+
+    return (
+      <View style={[styles.cartItemContainer, isDarkMode && styles.cartItemContainerDark]}>
+        {source ? (
+          <Image source={source} style={styles.cartItemImage} />
+        ) : (
+          <View style={[styles.cartItemImage, styles.imagePlaceholder]}>
+            <IconIo name="image-outline" size={24} color="#999" />
+          </View>
+        )}
+
+        <View style={styles.cartItemDetails}>
+          <Text style={[styles.cartItemName, isDarkMode && styles.cartItemNameDark]}>{item.name}</Text>
+
+          {!!item.storage && (
+            <Text style={[styles.cartItemDescription, isDarkMode && styles.cartItemDescriptionDark]}>
+              {item.storage}
             </Text>
           )}
-          <Text style={[styles.cartItemPrice, isDarkMode && styles.cartItemPriceDark]}>
-            ${(item.price * (1 - (item.discount || 0))).toFixed(2)}
-          </Text>
+
+          {!!item.description && (
+            <Text
+              numberOfLines={2}
+              style={[styles.cartItemDescription, isDarkMode && styles.cartItemDescriptionDark]}
+            >
+              {item.description}
+            </Text>
+          )}
+
+          <View style={styles.priceContainer}>
+            {discount > 0 && (
+              <Text style={[styles.originalPrice, isDarkMode && styles.originalPriceDark]}>
+                ${price.toFixed(2)}
+              </Text>
+            )}
+            <Text style={[styles.cartItemPrice, isDarkMode && styles.cartItemPriceDark]}>
+              ${(price * (1 - discount)).toFixed(2)}
+            </Text>
+          </View>
+
+          {discount > 0 && (
+            <Text style={[styles.discountText, isDarkMode && styles.discountTextDark]}>
+              ({(discount * 100).toFixed(0)}% {t('off')})
+            </Text>
+          )}
+
+          <View style={[styles.quantityControlContainer, isDarkMode && styles.quantityControlContainerDark]}>
+            <TouchableOpacity
+              onPress={() => handleQuantityChange(item.id, item.storage, (Number(item.quantity) || 1) - 1)}
+              style={[
+                styles.quantityButton,
+                item.quantity <= 1 && styles.disabledButton,
+                { backgroundColor: isDarkMode ? '#404040' : '#424242' },
+              ]}
+              disabled={item.quantity <= 1}
+            >
+              <IconIo
+                name="remove-outline"
+                size={20}
+                color={
+                  item.quantity <= 1
+                    ? isDarkMode
+                      ? '#A9A9A9'
+                      : '#808080'
+                    : isDarkMode
+                    ? '#E0E0E0'
+                    : 'white'
+                }
+              />
+            </TouchableOpacity>
+
+            <Text style={[styles.quantityText, isDarkMode && styles.quantityTextDark]}>{item.quantity}</Text>
+
+            <TouchableOpacity
+              onPress={() => handleQuantityChange(item.id, item.storage, (Number(item.quantity) || 1) + 1)}
+              style={[styles.quantityButton, { backgroundColor: isDarkMode ? '#404040' : '#424242' }]}
+            >
+              <IconIo name="add-outline" size={20} color={isDarkMode ? '#E0E0E0' : 'white'} />
+            </TouchableOpacity>
+          </View>
         </View>
-        {item.discount > 0 && (
-          <Text style={[styles.discountText, isDarkMode && styles.discountTextDark]}>
-            ({(item.discount * 100).toFixed(0)}% {t('off')})
-          </Text>
-        )}
-        <View style={[styles.quantityControlContainer, isDarkMode && styles.quantityControlContainerDark]}>
-          <TouchableOpacity
-            onPress={() => handleQuantityChange(item.id, item.storage, item.quantity - 1)}
-            style={[
-              styles.quantityButton,
-              item.quantity <= 1 && styles.disabledButton,
-              { backgroundColor: isDarkMode ? '#404040' : '#424242' },
-            ]}
-            disabled={item.quantity <= 1}
-          >
-            <IconIo
-              name="remove-outline"
-              size={20}
-              color={
-                item.quantity <= 1
-                  ? isDarkMode
-                    ? '#A9A9A9'
-                    : '#808080'
-                  : isDarkMode
-                  ? '#E0E0E0'
-                  : 'white'
-              }
-            />
-          </TouchableOpacity>
-          <Text style={[styles.quantityText, isDarkMode && styles.quantityTextDark]}>{item.quantity}</Text>
-          <TouchableOpacity
-            onPress={() => handleQuantityChange(item.id, item.storage, item.quantity + 1)}
-            style={[styles.quantityButton, { backgroundColor: isDarkMode ? '#404040' : '#424242' }]}
-          >
-            <IconIo name="add-outline" size={20} color={isDarkMode ? '#E0E0E0' : 'white'} />
-          </TouchableOpacity>
-        </View>
+
+        <TouchableOpacity
+          onPress={() => handleDeleteItem(item.id, item.storage)}
+          style={styles.deleteButton}
+        >
+          <IconIo name="trash" size={20} color="red" />
+        </TouchableOpacity>
       </View>
-      <TouchableOpacity onPress={() => handleDeleteItem(item.id, item.storage)} style={styles.deleteButton}>
-        <IconIo name="trash" size={20} color="red" />
-      </TouchableOpacity>
-    </View>
-  );
+    );
+  };
 
   return (
     <SafeAreaView style={[styles.container, isDarkMode && styles.containerDark]}>
@@ -209,20 +251,20 @@ const MyCart = () => {
         <View style={{ width: 40 }} />
       </View>
 
-      {/* FlatList is NOT wrapped in a ScrollView anymore */}
       <FlatList
         style={[styles.list, isDarkMode && styles.listDark]}
-        contentContainerStyle={
-          cartItems.length === 0 ? styles.emptyListContent : styles.listContent
-        }
+        contentContainerStyle={cartItems.length === 0 ? styles.emptyListContent : styles.listContent}
         data={cartItems}
         renderItem={renderCartItem}
-        keyExtractor={(item) => `${item.id}-${item.storage}`}
+        keyExtractor={(item, index) => `${item.id}-${item.storage ?? 'na'}-${index}`}
         showsVerticalScrollIndicator={false}
+        extraData={cartItems}
         ListEmptyComponent={
-          <Text style={[styles.emptyText, isDarkMode && styles.emptyTextDark]}>
-            {t('Your cart is empty.')}
-          </Text>
+          loaded ? (
+            <Text style={[styles.emptyText, isDarkMode && styles.emptyTextDark]}>
+              {t('Your cart is empty.')}
+            </Text>
+          ) : null
         }
       />
 
@@ -233,6 +275,7 @@ const MyCart = () => {
             ${calculateSubtotal().toFixed(2)}
           </Text>
         </View>
+
         {calculateSubtotal() > 0 && (
           <View style={styles.summaryRow}>
             <Text style={[styles.summaryLabel, isDarkMode && styles.summaryLabelDark]}>
@@ -243,6 +286,7 @@ const MyCart = () => {
             </Text>
           </View>
         )}
+
         {calculateTotalDiscount() > 0 && (
           <View style={styles.summaryRow}>
             <Text style={[styles.summaryLabel, isDarkMode && styles.summaryLabelDark]}>{t('Discount')}:</Text>
@@ -251,6 +295,7 @@ const MyCart = () => {
             </Text>
           </View>
         )}
+
         <View style={[styles.summaryRow, styles.totalRow]}>
           <Text style={[styles.summaryLabel, styles.totalLabel, isDarkMode && styles.totalLabelDark]}>
             {t('Total')}:
@@ -314,6 +359,7 @@ const styles = StyleSheet.create({
   },
   cartItemContainerDark: { backgroundColor: '#282828', elevation: 0, shadowOpacity: 0 },
   cartItemImage: { width: 80, height: 80, marginRight: 16, resizeMode: 'contain' },
+  imagePlaceholder: { alignItems: 'center', justifyContent: 'center', backgroundColor: '#eee', borderRadius: 8 },
   cartItemDetails: { flex: 1 },
   cartItemName: { fontSize: 16, fontWeight: 'bold', marginBottom: 4 },
   cartItemNameDark: { color: '#E0E0E0' },
@@ -337,23 +383,9 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   quantityControlContainerDark: { backgroundColor: '#303030' },
-  quantityButton: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginHorizontal: 0,
-  },
+  quantityButton: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginHorizontal: 0 },
   disabledButton: { backgroundColor: '#ddd' },
-  quantityText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginHorizontal: 8,
-    color: 'black',
-    minWidth: 20,
-    textAlign: 'center',
-  },
+  quantityText: { fontSize: 16, fontWeight: 'bold', marginHorizontal: 8, color: 'black', minWidth: 20, textAlign: 'center' },
   quantityTextDark: { color: '#E0E0E0' },
   deleteButton: { padding: 10 },
   summaryContainer: { padding: 16, backgroundColor: 'white', borderTopWidth: 1, borderTopColor: '#ddd' },

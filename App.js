@@ -32,6 +32,11 @@ import NewArrivalsScreen from './NewArrivals';
 import NotificationsScreen from './Notifications';
 import Dashboard from './Dashboard';
 
+// ✅ الشاشة الناقصة اللي بتسبب الإيرور
+import ProductDetail from './ProductDetail';
+// (لو عندك ملف Products.js منفصل ومش جوه الـ Dashboard، فكّ الكومنت ده)
+// import ProductsScreen from './Products';
+
 import sales from './assets/sales.png';
 import salesImage from './assets/sign.png';
 import './i18n';
@@ -116,10 +121,6 @@ const App = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [initialRoute, setInitialRoute] = useState('FirstPage');
 
-  // ❌ اتشال تحميل الخطوط اليدوي بالكامل.
-  // @expo/vector-icons بيحمّل خطوطه لوحده، والتحميل اليدوي هو اللي كان بيرمي:
-  // "Font not found /data/user/0/host.exp.exponent/cache/ExponentAsset-....ttf"
-
   useEffect(() => {
     const bootstrap = async () => {
       let route = 'FirstPage';
@@ -158,6 +159,12 @@ const App = () => {
               <Stack.Screen name="VerifyEmail" component={VerifyEmailScreen} options={{ headerShown: false }} />
               <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} options={{ headerShown: false }} />
               <Stack.Screen name="Dashboard" component={Dashboard} options={{ headerShown: false }} />
+
+              {/* ✅ الإضافات المهمة */}
+              <Stack.Screen name="ProductDetail" component={ProductDetail} options={{ headerShown: false }} />
+              <Stack.Screen name="Cart" component={CartScreen} options={{ headerShown: false }} />
+              {/* <Stack.Screen name="Products" component={ProductsScreen} options={{ headerShown: false }} /> */}
+
               <Stack.Screen name="ReportScreen" component={Report} options={{ title: 'Report' }} />
               <Stack.Screen name="EditProfile" component={EditProfileScreen} options={{ headerShown: false }} />
               <Stack.Screen name="MyFavorites" component={MyFavoritesScreen} options={{ headerShown: false }} />
