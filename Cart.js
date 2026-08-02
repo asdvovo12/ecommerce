@@ -18,11 +18,11 @@ import './i18n';
 
 /*
   ✅ لا نستخدم أي أيقونات خطوط (Ionicons / vector-icons) في هذه الشاشة.
-  السبب: خط الأيقونات لا يتم تحميله في هذا المشروع (metro.config.js يعمل shim
-  لموديولات url/events/buffer اللي بيعتمد عليها expo-font/expo-asset)، فالأيقونة
-  كانت بترسم فاضية بدون أي error — وده اللي كان مخفي زرار الحذف و + و −.
-  الحل: رسم الرموز بنصوص عادية (←  −  +  ✕) وهي دائمًا بتظهر.
+  الرموز البسيطة (−  +) مرسومة كنصوص، وأيقونة الحذف (سلة المهملات)
+  مرسومة بـ Views عادية — فمفيش أي اعتماد على خطوط أو مكتبات خارجية.
+  ✅ تم حذف زرار السهم (←) من الهيدر.
 */
+
 const Glyph = ({ char, size = 20, color = '#333', style }) => (
   <Text
     allowFontScaling={false}
@@ -31,6 +31,64 @@ const Glyph = ({ char, size = 20, color = '#333', style }) => (
     {char}
   </Text>
 );
+
+/* ✅ أيقونة سلة المهملات — مرسومة بالكامل بـ Views (تظهر دائمًا) */
+const TrashIcon = ({ size = 18, color = '#E53935', stroke = 1.6 }) => {
+  const lidWidth = size * 0.92;
+  const handleWidth = size * 0.38;
+  const handleHeight = size * 0.14;
+  const bodyWidth = size * 0.72;
+  const bodyHeight = size * 0.74;
+  const lineHeight = bodyHeight * 0.58;
+
+  return (
+    <View style={{ width: size, alignItems: 'center', justifyContent: 'center' }}>
+      {/* مقبض الغطاء */}
+      <View
+        style={{
+          width: handleWidth,
+          height: handleHeight,
+          borderWidth: stroke,
+          borderBottomWidth: 0,
+          borderColor: color,
+          borderTopLeftRadius: 2,
+          borderTopRightRadius: 2,
+        }}
+      />
+      {/* الغطاء */}
+      <View
+        style={{
+          width: lidWidth,
+          height: stroke,
+          backgroundColor: color,
+          borderRadius: stroke,
+          marginTop: 1.5,
+        }}
+      />
+      {/* جسم السلة */}
+      <View
+        style={{
+          width: bodyWidth,
+          height: bodyHeight,
+          marginTop: 1.5,
+          borderWidth: stroke,
+          borderTopWidth: 0,
+          borderColor: color,
+          borderBottomLeftRadius: 3,
+          borderBottomRightRadius: 3,
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-evenly',
+          overflow: 'hidden',
+        }}
+      >
+        <View style={{ width: stroke, height: lineHeight, backgroundColor: color, borderRadius: stroke }} />
+        <View style={{ width: stroke, height: lineHeight, backgroundColor: color, borderRadius: stroke }} />
+        <View style={{ width: stroke, height: lineHeight, backgroundColor: color, borderRadius: stroke }} />
+      </View>
+    </View>
+  );
+};
 
 /* ✅ يمنع كراش: Value for uri cannot be cast from Double to String */
 const toImageSource = (img) => {
@@ -66,7 +124,7 @@ const MyCart = () => {
     }
   }, []);
 
-  /* ---------- التحميل + دمج أي item جاي من route.params (توافق للخلف) ---------- */
+  /* ---------- التحميل + دمج أي item جاي من route.params ---------- */
   const loadCart = useCallback(async () => {
     try {
       const saved = await AsyncStorage.getItem('cart');
@@ -176,8 +234,6 @@ const MyCart = () => {
     }
   };
 
-  const handleBackPress = () => navigation.goBack();
-
   /* ---------- العرض ---------- */
   const renderCartItem = ({ item }) => {
     const source = toImageSource(item.image);
@@ -264,14 +320,15 @@ const MyCart = () => {
           </View>
         </View>
 
-        {/* ✅ زرار الحذف — دائرة حمراء واضحة بنص، مش أيقونة خط */}
+        {/* ✅ زرار الحذف — أيقونة سلة مهملات مرسومة بـ Views */}
         <TouchableOpacity
           onPress={() => confirmDelete(item)}
           style={[styles.deleteButton, isDarkMode && styles.deleteButtonDark]}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          accessibilityRole="button"
           accessibilityLabel="delete-item"
         >
-          <Glyph char="✕" size={18} color="#E53935" />
+          <TrashIcon size={18} color={isDarkMode ? '#EF5350' : '#E53935'} />
         </TouchableOpacity>
       </View>
     );
@@ -279,12 +336,9 @@ const MyCart = () => {
 
   return (
     <SafeAreaView style={[styles.container, isDarkMode && styles.containerDark]}>
+      {/* ✅ الهيدر من غير سهم رجوع */}
       <View style={[styles.header, isDarkMode && styles.headerDark]}>
-        <TouchableOpacity style={styles.backButton} onPress={handleBackPress}>
-          <Glyph char="←" size={24} color={isDarkMode ? '#E0E0E0' : '#333'} />
-        </TouchableOpacity>
         <Text style={[styles.title, isDarkMode && styles.titleDark]}>{t('Cart')}</Text>
-        <View style={{ width: 40 }} />
       </View>
 
       <FlatList
@@ -366,23 +420,25 @@ const MyCart = () => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f8f8f8' },
   containerDark: { backgroundColor: '#121212' },
+
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#ddd',
     backgroundColor: 'white',
   },
   headerDark: { backgroundColor: '#1E1E1E', borderBottomColor: '#333' },
-  backButton: { paddingHorizontal: 8, minWidth: 40 },
   title: { fontSize: 20, fontWeight: 'bold', flex: 1, textAlign: 'center' },
   titleDark: { color: '#E0E0E0' },
+
   list: { flex: 1 },
   listDark: { backgroundColor: '#121212' },
   listContent: { paddingVertical: 8 },
   emptyListContent: { flexGrow: 1, justifyContent: 'center' },
+
   cartItemContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -410,6 +466,7 @@ const styles = StyleSheet.create({
   cartItemNameDark: { color: '#E0E0E0' },
   cartItemDescription: { fontSize: 14, color: '#666', marginBottom: 8 },
   cartItemDescriptionDark: { color: '#A9A9A9' },
+
   priceContainer: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
   originalPrice: {
     fontSize: 14,
@@ -422,6 +479,7 @@ const styles = StyleSheet.create({
   cartItemPriceDark: { color: '#E0E0E0' },
   discountText: { fontSize: 14, color: 'green' },
   discountTextDark: { color: '#32CD32' },
+
   quantityControlContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -451,10 +509,11 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   quantityTextDark: { color: '#E0E0E0' },
+
   deleteButton: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: '#E53935',
     backgroundColor: '#FFEBEE',
@@ -463,6 +522,7 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   deleteButtonDark: { backgroundColor: '#3A1F1F', borderColor: '#EF5350' },
+
   summaryContainer: {
     padding: 16,
     backgroundColor: 'white',
@@ -480,6 +540,7 @@ const styles = StyleSheet.create({
   totalLabelDark: { color: '#E0E0E0' },
   totalValue: { fontSize: 18, color: '#000' },
   totalValueDark: { color: '#FFF' },
+
   checkoutButton: { paddingVertical: 13, borderRadius: 4, alignItems: 'center', marginTop: 12 },
   checkoutButtonLight: {
     backgroundColor: '#ffdd00',
@@ -500,6 +561,7 @@ const styles = StyleSheet.create({
   checkoutButtonDisabled: { opacity: 0.5 },
   checkoutButtonText: { fontSize: 18, fontWeight: 'bold', color: 'black' },
   checkoutButtonTextDark: { color: 'white' },
+
   emptyText: { textAlign: 'center', fontSize: 18, color: '#999' },
   emptyTextDark: { color: '#A9A9A9' },
 });

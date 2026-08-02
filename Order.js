@@ -1,6 +1,7 @@
 // OrderTrackingScreen.js
 // Shows the signed-in user's REAL orders (from Supabase) with a simple status
-// stepper. Replaces the previous hardcoded placeholder order data.
+// stepper. All icons are drawn with Views (no icon fonts), so nothing breaks
+// when the font asset fails to download.
 
 import React, { useState, useEffect, useCallback } from 'react';
 import {
@@ -11,13 +12,309 @@ import {
     TouchableOpacity,
     SafeAreaView,
     ActivityIndicator,
+    RefreshControl,
+    I18nManager,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useNavigation } from '@react-navigation/native';
 import { useDarkMode } from './DarkModeContext';
-import Icon from 'react-native-vector-icons/FontAwesome5';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getMyOrders } from './services/orders';
+
+/* =======================================================================
+   أيقونات مرسومة بـ Views — مش بتعتمد على أي فونت
+   ======================================================================= */
+
+/* ✅ علامة صح (شرطتين متعاكستين) */
+const CheckIcon = ({ size = 20, color = '#fff', thickness = 3 }) => {
+    const s = size / 20;
+    return (
+        <View style={{ width: size, height: size }}>
+            <View
+                style={{
+                    position: 'absolute',
+                    left: 2.3 * s,
+                    top: 6.3 * s,
+                    width: thickness * s,
+                    height: 9 * s,
+                    borderRadius: (thickness * s) / 2,
+                    backgroundColor: color,
+                    transform: [{ rotate: '-45deg' }],
+                }}
+            />
+            <View
+                style={{
+                    position: 'absolute',
+                    left: 10.4 * s,
+                    top: 2 * s,
+                    width: thickness * s,
+                    height: 14 * s,
+                    borderRadius: (thickness * s) / 2,
+                    backgroundColor: color,
+                    transform: [{ rotate: '45deg' }],
+                }}
+            />
+        </View>
+    );
+};
+
+/* 🛒 عربة تسوق */
+const CartIcon = ({ size = 22, color = '#333' }) => (
+    <View style={{ width: size, height: size }}>
+        {/* المقبض */}
+        <View
+            style={{
+                position: 'absolute',
+                left: 0,
+                top: size * 0.16,
+                width: size * 0.2,
+                height: size * 0.09,
+                borderRadius: size * 0.05,
+                backgroundColor: color,
+            }}
+        />
+        {/* الوصلة المائلة */}
+        <View
+            style={{
+                position: 'absolute',
+                left: size * 0.19,
+                top: size * 0.16,
+                width: size * 0.08,
+                height: size * 0.2,
+                borderRadius: size * 0.04,
+                backgroundColor: color,
+                transform: [{ rotate: '-20deg' }],
+            }}
+        />
+        {/* السلة */}
+        <View
+            style={{
+                position: 'absolute',
+                left: size * 0.24,
+                top: size * 0.3,
+                width: size * 0.66,
+                height: size * 0.34,
+                borderWidth: size * 0.085,
+                borderColor: color,
+                borderTopWidth: size * 0.085,
+                borderBottomLeftRadius: size * 0.08,
+                borderBottomRightRadius: size * 0.08,
+            }}
+        />
+        {/* العجلتين */}
+        <View
+            style={{
+                position: 'absolute',
+                left: size * 0.32,
+                bottom: size * 0.02,
+                width: size * 0.15,
+                height: size * 0.15,
+                borderRadius: size * 0.075,
+                backgroundColor: color,
+            }}
+        />
+        <View
+            style={{
+                position: 'absolute',
+                left: size * 0.66,
+                bottom: size * 0.02,
+                width: size * 0.15,
+                height: size * 0.15,
+                borderRadius: size * 0.075,
+                backgroundColor: color,
+            }}
+        />
+    </View>
+);
+
+/* 🏬 متجر */
+const StoreIcon = ({ size = 20, color = '#fff' }) => (
+    <View style={{ width: size, height: size }}>
+        {/* المظلة */}
+        <View
+            style={{
+                position: 'absolute',
+                left: size * 0.06,
+                top: size * 0.16,
+                width: size * 0.88,
+                height: size * 0.16,
+                borderRadius: size * 0.04,
+                backgroundColor: color,
+            }}
+        />
+        {/* جسم المحل */}
+        <View
+            style={{
+                position: 'absolute',
+                left: size * 0.14,
+                top: size * 0.34,
+                width: size * 0.72,
+                height: size * 0.46,
+                borderWidth: size * 0.09,
+                borderColor: color,
+                borderTopWidth: 0,
+            }}
+        />
+        {/* الباب */}
+        <View
+            style={{
+                position: 'absolute',
+                left: size * 0.42,
+                bottom: size * 0.2,
+                width: size * 0.18,
+                height: size * 0.24,
+                backgroundColor: color,
+            }}
+        />
+    </View>
+);
+
+/* 🚚 شاحنة */
+const TruckIcon = ({ size = 20, color = '#fff' }) => (
+    <View style={{ width: size, height: size }}>
+        {/* الصندوق */}
+        <View
+            style={{
+                position: 'absolute',
+                left: size * 0.04,
+                top: size * 0.28,
+                width: size * 0.5,
+                height: size * 0.38,
+                borderRadius: size * 0.05,
+                backgroundColor: color,
+            }}
+        />
+        {/* الكابينة */}
+        <View
+            style={{
+                position: 'absolute',
+                left: size * 0.56,
+                top: size * 0.42,
+                width: size * 0.36,
+                height: size * 0.24,
+                borderTopLeftRadius: size * 0.05,
+                borderTopRightRadius: size * 0.12,
+                borderBottomRightRadius: size * 0.05,
+                backgroundColor: color,
+            }}
+        />
+        {/* العجلتين */}
+        <View
+            style={{
+                position: 'absolute',
+                left: size * 0.14,
+                bottom: size * 0.08,
+                width: size * 0.16,
+                height: size * 0.16,
+                borderRadius: size * 0.08,
+                backgroundColor: color,
+            }}
+        />
+        <View
+            style={{
+                position: 'absolute',
+                left: size * 0.62,
+                bottom: size * 0.08,
+                width: size * 0.16,
+                height: size * 0.16,
+                borderRadius: size * 0.08,
+                backgroundColor: color,
+            }}
+        />
+    </View>
+);
+
+/* ⚠️ دائرة تعجب */
+const AlertIcon = ({ size = 40, color = '#ccc' }) => (
+    <View
+        style={{
+            width: size,
+            height: size,
+            borderRadius: size / 2,
+            borderWidth: size * 0.08,
+            borderColor: color,
+            alignItems: 'center',
+            justifyContent: 'center',
+        }}
+    >
+        <View
+            style={{
+                width: size * 0.09,
+                height: size * 0.34,
+                borderRadius: size * 0.045,
+                backgroundColor: color,
+                marginBottom: size * 0.06,
+            }}
+        />
+        <View
+            style={{
+                width: size * 0.11,
+                height: size * 0.11,
+                borderRadius: size * 0.055,
+                backgroundColor: color,
+            }}
+        />
+    </View>
+);
+
+/* 📦 صندوق */
+const BoxIcon = ({ size = 48, color = '#ccc' }) => (
+    <View style={{ width: size, height: size }}>
+        {/* الغطاء */}
+        <View
+            style={{
+                position: 'absolute',
+                left: size * 0.06,
+                top: size * 0.2,
+                width: size * 0.88,
+                height: size * 0.2,
+                borderWidth: size * 0.06,
+                borderColor: color,
+                borderRadius: size * 0.03,
+            }}
+        />
+        {/* الجسم */}
+        <View
+            style={{
+                position: 'absolute',
+                left: size * 0.14,
+                top: size * 0.4,
+                width: size * 0.72,
+                height: size * 0.4,
+                borderWidth: size * 0.06,
+                borderColor: color,
+                borderTopWidth: 0,
+            }}
+        />
+        {/* الشريط الأوسط */}
+        <View
+            style={{
+                position: 'absolute',
+                left: size * 0.45,
+                top: size * 0.2,
+                width: size * 0.1,
+                height: size * 0.6,
+                backgroundColor: color,
+            }}
+        />
+    </View>
+);
+
+/* أيقونة الخطوة حسب النوع */
+const StepIcon = ({ type, size = 18, color = '#fff' }) => {
+    switch (type) {
+        case 'cart':
+            return <CartIcon size={size} color={color} />;
+        case 'store':
+            return <StoreIcon size={size} color={color} />;
+        case 'truck':
+            return <TruckIcon size={size} color={color} />;
+        case 'check':
+            return <CheckIcon size={size} color={color} thickness={3} />;
+        default:
+            return null;
+    }
+};
 
 // --- Theme Colors ---
 const lightTheme = {
@@ -52,22 +349,47 @@ const darkTheme = {
 
 // Which steps are "active" for a given order status.
 const STATUS_STEPS = [
-    { key: 'orderPlaced', icon: 'shopping-cart', statuses: ['paid', 'pending', 'processing', 'shipped', 'delivered'] },
-    { key: 'orderDispatched', icon: 'store-alt', statuses: ['processing', 'shipped', 'delivered'] },
+    { key: 'orderPlaced', icon: 'cart', statuses: ['paid', 'pending', 'processing', 'shipped', 'delivered'] },
+    { key: 'orderDispatched', icon: 'store', statuses: ['processing', 'shipped', 'delivered'] },
     { key: 'orderInTransit', icon: 'truck', statuses: ['shipped', 'delivered'] },
-    { key: 'deliveredSuccessfully', icon: 'check-circle', statuses: ['delivered'], solid: true },
+    { key: 'deliveredSuccessfully', icon: 'check', statuses: ['delivered'] },
 ];
 
+// Map a raw JS/Supabase error to a translation KEY (never a raw English string).
+const toErrorKey = (e) => {
+    const msg = String((e && e.message) || '').toLowerCase();
+    if (
+        msg.includes('network request failed') ||
+        msg.includes('failed to fetch') ||
+        msg.includes('timeout') ||
+        msg.includes('timed out') ||
+        (e && e.name === 'TypeError')
+    ) {
+        return 'networkError';
+    }
+    if (
+        msg.includes('jwt') ||
+        msg.includes('not authenticated') ||
+        msg.includes('unauthorized') ||
+        msg.includes('auth session missing')
+    ) {
+        return 'authError';
+    }
+    return 'genericError';
+};
+
 const OrderTrackingScreen = () => {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const { isDarkMode } = useDarkMode();
     const navigation = useNavigation();
     const theme = isDarkMode ? darkTheme : lightTheme;
+    const isRTL = i18n.language === 'ar' || I18nManager.isRTL;
 
     const [cartItemCount, setCartItemCount] = useState(0);
     const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
+    const [refreshing, setRefreshing] = useState(false);
+    const [errorKey, setErrorKey] = useState(null);
 
     const loadCartCount = useCallback(async () => {
         try {
@@ -78,40 +400,53 @@ const OrderTrackingScreen = () => {
         }
     }, []);
 
-    const loadOrders = useCallback(async () => {
+    const loadOrders = useCallback(async (silent = false) => {
         try {
-            setLoading(true);
-            setError(null);
+            if (!silent) setLoading(true);
+            setErrorKey(null);
             const data = await getMyOrders();
-            setOrders(data || []);
+            setOrders(Array.isArray(data) ? data : []);
         } catch (e) {
             console.error('Failed to load orders:', e);
-            setError(e && e.message ? e.message : 'Failed to load orders');
+            setErrorKey(toErrorKey(e));
         } finally {
             setLoading(false);
+            setRefreshing(false);
         }
     }, []);
+
+    const onRefresh = useCallback(() => {
+        setRefreshing(true);
+        loadCartCount();
+        loadOrders(true);
+    }, [loadCartCount, loadOrders]);
 
     useEffect(() => {
         loadCartCount();
         loadOrders();
         const unsubscribe = navigation.addListener('focus', () => {
             loadCartCount();
-            loadOrders();
+            loadOrders(true);
         });
         return unsubscribe;
     }, [navigation, loadCartCount, loadOrders]);
 
-    const styles = createStyles(theme);
+    const styles = createStyles(theme, isRTL);
 
+    // Translate an order status; falls back to the raw value if no key exists.
     const statusLabel = (status) => {
-        const translated = t(status);
-        return translated !== status ? translated : status;
+        if (!status) return '';
+        const key = String(status).toLowerCase();
+        return i18n.exists(key) ? t(key) : String(status);
     };
+
+    const formatMoney = (value) => `$${Number(value || 0).toFixed(2)}`;
 
     const renderOrder = (order) => {
         const items = order.order_items || [];
         const created = order.created_at ? new Date(order.created_at) : null;
+        const locale = i18n.language === 'ar' ? 'ar-EG' : 'en-US';
+
         let activeIndex = 0;
         STATUS_STEPS.forEach((step, i) => {
             if (step.statuses.includes(order.status)) activeIndex = i;
@@ -129,8 +464,9 @@ const OrderTrackingScreen = () => {
 
                 {created && (
                     <Text style={styles.orderDate}>
-                        {created.toLocaleDateString()} @{' '}
-                        {created.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        {created.toLocaleDateString(locale)}
+                        {t('dateTimeSeparator')}
+                        {created.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}
                     </Text>
                 )}
 
@@ -141,7 +477,7 @@ const OrderTrackingScreen = () => {
                             {it.storage ? ` (${it.storage})` : ''} x{it.quantity}
                         </Text>
                         <Text style={styles.itemPrice}>
-                            ${(Number(it.unit_price) * it.quantity).toFixed(2)}
+                            {formatMoney(Number(it.unit_price) * it.quantity)}
                         </Text>
                     </View>
                 ))}
@@ -150,7 +486,7 @@ const OrderTrackingScreen = () => {
 
                 <View style={styles.totalRow}>
                     <Text style={styles.totalLabel}>{t('Order total')}</Text>
-                    <Text style={styles.totalValue}>${Number(order.total).toFixed(2)}</Text>
+                    <Text style={styles.totalValue}>{formatMoney(order.total)}</Text>
                 </View>
 
                 <View style={styles.stepper}>
@@ -164,14 +500,14 @@ const OrderTrackingScreen = () => {
                                         { backgroundColor: active ? theme.activeIconBg : theme.inactiveIconBg },
                                     ]}
                                 >
-                                    <Icon name={step.icon} size={14} color="#fff" solid={!!step.solid} />
+                                    <StepIcon type={step.icon} size={18} color="#fff" />
                                 </View>
                                 <Text
                                     style={[
                                         styles.stepLabel,
                                         { color: active ? theme.activeTitle : theme.inactiveTitle },
                                     ]}
-                                    numberOfLines={1}
+                                    numberOfLines={2}
                                 >
                                     {t(step.key)}
                                 </Text>
@@ -186,15 +522,16 @@ const OrderTrackingScreen = () => {
     return (
         <SafeAreaView style={styles.safeArea}>
             <View style={styles.container}>
-                {/* Header */}
+                {/* Header — من غير سهم/placeholder */}
                 <View style={styles.appHeader}>
-                    <View style={styles.headerPlaceholder} />
                     <Text style={styles.headerTitle}>{t('myOrders')}</Text>
+
                     <TouchableOpacity
                         onPress={() => navigation.navigate('Cart')}
                         style={styles.headerCartIconContainer}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                     >
-                        <Icon name="shopping-cart" size={22} color={theme.headerText} />
+                        <CartIcon size={22} color={theme.headerText} />
                         {cartItemCount > 0 && (
                             <View style={styles.cartBadge}>
                                 <Text style={styles.cartBadgeText}>{cartItemCount}</Text>
@@ -204,23 +541,36 @@ const OrderTrackingScreen = () => {
                 </View>
 
                 {/* Orders list */}
-                <ScrollView contentContainerStyle={styles.listContent} showsVerticalScrollIndicator={false}>
+                <ScrollView
+                    contentContainerStyle={styles.listContent}
+                    showsVerticalScrollIndicator={false}
+                    refreshControl={
+                        <RefreshControl
+                            refreshing={refreshing}
+                            onRefresh={onRefresh}
+                            tintColor={theme.activeIconBg}
+                            colors={[theme.activeIconBg]}
+                        />
+                    }
+                >
                     {loading ? (
-                        <ActivityIndicator size="large" color={theme.activeIconBg} style={{ marginTop: 50 }} />
-                    ) : error ? (
+                        <ActivityIndicator
+                            size="large"
+                            color={theme.activeIconBg}
+                            style={{ marginTop: 50 }}
+                        />
+                    ) : errorKey ? (
                         <View style={styles.emptyWrap}>
-                            <Icon name="exclamation-circle" size={40} color={theme.inactiveIconBg} />
-                            <Text style={styles.emptyText}>{error}</Text>
-                            <TouchableOpacity onPress={loadOrders} style={styles.retryBtn}>
-                                <Text style={styles.retryText}>{t('Retry', 'Retry')}</Text>
+                            <AlertIcon size={40} color={theme.inactiveIconBg} />
+                            <Text style={styles.emptyText}>{t(errorKey)}</Text>
+                            <TouchableOpacity onPress={() => loadOrders()} style={styles.retryBtn}>
+                                <Text style={styles.retryText}>{t('Retry')}</Text>
                             </TouchableOpacity>
                         </View>
                     ) : orders.length === 0 ? (
                         <View style={styles.emptyWrap}>
-                            <Icon name="box-open" size={48} color={theme.inactiveIconBg} />
-                            <Text style={styles.emptyText}>
-                                {t('noOrdersYet', 'You have no orders yet.')}
-                            </Text>
+                            <BoxIcon size={48} color={theme.inactiveIconBg} />
+                            <Text style={styles.emptyText}>{t('noOrdersYet')}</Text>
                         </View>
                     ) : (
                         orders.map(renderOrder)
@@ -231,13 +581,13 @@ const OrderTrackingScreen = () => {
     );
 };
 
-const createStyles = (theme) =>
+const createStyles = (theme, isRTL) =>
     StyleSheet.create({
         safeArea: { flex: 1, backgroundColor: theme.headerBg },
         container: { flex: 1, backgroundColor: theme.appBg },
+
         appHeader: {
-            flexDirection: 'row',
-            justifyContent: 'space-between',
+            flexDirection: isRTL ? 'row-reverse' : 'row',
             alignItems: 'center',
             paddingHorizontal: 20,
             paddingVertical: 10,
@@ -246,13 +596,13 @@ const createStyles = (theme) =>
             backgroundColor: theme.headerBg,
             height: 60,
         },
-        headerPlaceholder: { width: 40 },
         headerTitle: {
             fontSize: 20,
             fontWeight: 'bold',
             textAlign: 'center',
             color: theme.headerText,
             flex: 1,
+            marginHorizontal: 8,
         },
         headerCartIconContainer: {
             width: 40,
@@ -260,21 +610,24 @@ const createStyles = (theme) =>
             alignItems: 'center',
             justifyContent: 'center',
             position: 'relative',
+            overflow: 'visible',
         },
         cartBadge: {
             position: 'absolute',
-            right: -5,
-            top: -5,
+            right: 0,
+            top: 0,
             backgroundColor: theme.badgeBg,
             borderRadius: 9,
-            width: 18,
+            minWidth: 18,
             height: 18,
+            paddingHorizontal: 4,
             justifyContent: 'center',
             alignItems: 'center',
             zIndex: 10,
         },
         cartBadgeText: { color: theme.badgeText, fontSize: 10, fontWeight: 'bold' },
-        listContent: { padding: 16, paddingBottom: 40 },
+
+        listContent: { padding: 16, paddingBottom: 40, flexGrow: 1 },
         orderCard: {
             backgroundColor: theme.cardBg,
             borderRadius: 12,
@@ -284,35 +637,54 @@ const createStyles = (theme) =>
             borderColor: theme.borderSubtle,
         },
         orderHeader: {
-            flexDirection: 'row',
+            flexDirection: isRTL ? 'row-reverse' : 'row',
             justifyContent: 'space-between',
             alignItems: 'center',
             marginBottom: 6,
         },
-        orderId: { fontWeight: 'bold', color: theme.headerText, fontSize: 15 },
+        orderId: {
+            fontWeight: 'bold',
+            color: theme.headerText,
+            fontSize: 15,
+            textAlign: isRTL ? 'right' : 'left',
+        },
         orderStatus: {
             color: theme.activeTitle,
             fontWeight: 'bold',
             textTransform: 'capitalize',
             fontSize: 13,
         },
-        orderDate: { color: theme.appTextDefault, fontSize: 12, marginBottom: 12 },
+        orderDate: {
+            color: theme.appTextDefault,
+            fontSize: 12,
+            marginBottom: 12,
+            textAlign: isRTL ? 'right' : 'left',
+        },
         itemRow: {
-            flexDirection: 'row',
+            flexDirection: isRTL ? 'row-reverse' : 'row',
             justifyContent: 'space-between',
             marginBottom: 6,
         },
-        itemName: { color: theme.appTextDefault, flex: 1, marginRight: 8 },
+        itemName: {
+            color: theme.appTextDefault,
+            flex: 1,
+            marginHorizontal: 8,
+            textAlign: isRTL ? 'right' : 'left',
+        },
         itemPrice: { color: theme.appTextDefault, fontWeight: '600' },
         divider: { height: 1, backgroundColor: theme.borderSubtle, marginVertical: 10 },
         totalRow: {
-            flexDirection: 'row',
+            flexDirection: isRTL ? 'row-reverse' : 'row',
             justifyContent: 'space-between',
             marginBottom: 16,
         },
         totalLabel: { fontWeight: 'bold', color: theme.headerText },
         totalValue: { fontWeight: 'bold', color: theme.headerText },
-        stepper: { flexDirection: 'row', justifyContent: 'space-between' },
+
+        stepper: {
+            flexDirection: isRTL ? 'row-reverse' : 'row',
+            justifyContent: 'space-between',
+        },
         step: { alignItems: 'center', flex: 1 },
         stepIcon: {
             width: 34,
@@ -322,12 +694,14 @@ const createStyles = (theme) =>
             justifyContent: 'center',
         },
         stepLabel: { fontSize: 9, marginTop: 4, textAlign: 'center' },
+
         emptyWrap: { alignItems: 'center', marginTop: 60, paddingHorizontal: 20 },
         emptyText: {
             textAlign: 'center',
             color: theme.appTextDefault,
             marginTop: 16,
             fontSize: 15,
+            lineHeight: 22,
         },
         retryBtn: {
             marginTop: 16,

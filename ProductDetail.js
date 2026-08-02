@@ -7,50 +7,52 @@ import {
   Image,
   ScrollView,
   TouchableOpacity,
-  SafeAreaView,
   LayoutAnimation,
-  Platform,
-  UIManager,
   Dimensions,
   Alert,
+  I18nManager,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTranslation } from 'react-i18next';
 import { useDarkMode } from './DarkModeContext';
 import { allProducts } from './ProductData';
 
-if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
-}
+/* ============ أيقونات مرسومة بـ View ============ */
 
-/* ================= أيقونات مرسومة بـ Views ================= */
-const BackArrowIcon = ({ size = 24, color = '#000' }) => {
-  const bar = Math.max(2, size * 0.1);
+// سهم رجوع تخين — الرأس مربع بحدّين مايل 45°، ومفيش scaleX
+const BackArrow = ({ size = 26, color = '#000', thickness, flip = false }) => {
+  const t = thickness || Math.max(3, size * 0.13);
+  const head = size * 0.42;
+
   return (
-    <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
-      <View style={{ position: 'absolute', width: size * 0.72, height: bar, backgroundColor: color, borderRadius: bar }} />
+    <View style={{ width: size, height: size }}>
+      {/* الجسم */}
       <View
         style={{
           position: 'absolute',
-          width: size * 0.34,
-          height: bar,
+          left: size * 0.12,
+          top: (size - t) / 2,
+          width: size * 0.76,
+          height: t,
+          borderRadius: t / 2,
           backgroundColor: color,
-          borderRadius: bar,
-          left: size * 0.14,
-          top: size * 0.5 - bar / 2 - size * 0.115,
-          transform: [{ rotate: '-45deg' }],
         }}
       />
+      {/* الرأس */}
       <View
         style={{
           position: 'absolute',
-          width: size * 0.34,
-          height: bar,
-          backgroundColor: color,
-          borderRadius: bar,
-          left: size * 0.14,
-          top: size * 0.5 - bar / 2 + size * 0.115,
+          top: (size - head) / 2,
+          ...(flip ? { right: size * 0.12 } : { left: size * 0.12 }),
+          width: head,
+          height: head,
+          borderLeftWidth: flip ? 0 : t,
+          borderBottomWidth: flip ? 0 : t,
+          borderRightWidth: flip ? t : 0,
+          borderTopWidth: flip ? t : 0,
+          borderColor: color,
           transform: [{ rotate: '45deg' }],
         }}
       />
@@ -58,50 +60,52 @@ const BackArrowIcon = ({ size = 24, color = '#000' }) => {
   );
 };
 
-const SolidHeart = ({ size = 24, color = '#000' }) => {
-  const pieceW = size * 0.6;
-  const pieceH = size * 0.9;
-  const offset = size * 0.1;
-  const piece = {
-    position: 'absolute',
-    top: 0,
-    width: pieceW,
-    height: pieceH,
-    backgroundColor: color,
-    borderTopLeftRadius: pieceW / 2,
-    borderTopRightRadius: pieceW / 2,
-  };
+// شكل القلب المصمت (دائرتين + مربع مايل)
+const HeartShape = ({ size, color }) => {
+  const a = size * 0.58;
+  const off = size * 0.005;
+  const piece = { position: 'absolute', width: a, height: a, backgroundColor: color };
+
   return (
     <View style={{ width: size, height: size }}>
-      <View style={[piece, { left: offset, transform: [{ rotate: '-45deg' }] }]} />
-      <View style={[piece, { right: offset, transform: [{ rotate: '45deg' }] }]} />
+      <View style={[piece, { borderRadius: a / 2, left: off, top: off }]} />
+      <View style={[piece, { borderRadius: a / 2, left: size * 0.415, top: off }]} />
+      <View style={[piece, { left: size * 0.21, top: size * 0.21, transform: [{ rotate: '45deg' }] }]} />
     </View>
   );
 };
 
-const HeartIcon = ({ size = 24, filled = false, color = '#000', bgColor = '#fff' }) => (
-  <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
-    <SolidHeart size={size} color={color} />
+// القلب: مفرّغ لو مش مفضلة، أصفر مصمت لو مفضلة
+const Heart = ({ size = 22, filled = false, stroke = '#000', bg = '#fff' }) => (
+  <View style={{ width: size, height: size }}>
+    <HeartShape size={size} color={filled ? '#F8D247' : stroke} />
     {!filled && (
-      <View style={{ position: 'absolute', transform: [{ scale: 0.7 }] }}>
-        <SolidHeart size={size} color={bgColor} />
+      <View style={{ position: 'absolute', left: 0, top: 0, transform: [{ scale: 0.62 }] }}>
+        <HeartShape size={size} color={bg} />
       </View>
     )}
   </View>
 );
 
-const PlusIcon = ({ size = 20, color = '#fff' }) => (
-  <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
-    <View style={{ position: 'absolute', width: size * 0.8, height: size * 0.14, backgroundColor: color, borderRadius: 2 }} />
-    <View style={{ position: 'absolute', width: size * 0.14, height: size * 0.8, backgroundColor: color, borderRadius: 2 }} />
-  </View>
-);
+// + و −
+const PlusIcon = ({ size = 20, color = '#fff' }) => {
+  const t = Math.max(2.5, size * 0.14);
+  return (
+    <View style={{ width: size, height: size, justifyContent: 'center', alignItems: 'center' }}>
+      <View style={{ position: 'absolute', width: size * 0.75, height: t, backgroundColor: color, borderRadius: t / 2 }} />
+      <View style={{ position: 'absolute', width: t, height: size * 0.75, backgroundColor: color, borderRadius: t / 2 }} />
+    </View>
+  );
+};
 
-const MinusIcon = ({ size = 20, color = '#fff' }) => (
-  <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
-    <View style={{ width: size * 0.8, height: size * 0.14, backgroundColor: color, borderRadius: 2 }} />
-  </View>
-);
+const MinusIcon = ({ size = 20, color = '#fff' }) => {
+  const t = Math.max(2.5, size * 0.14);
+  return (
+    <View style={{ width: size, height: size, justifyContent: 'center', alignItems: 'center' }}>
+      <View style={{ width: size * 0.75, height: t, backgroundColor: color, borderRadius: t / 2 }} />
+    </View>
+  );
+};
 
 /* ============================ الشاشة ============================ */
 function ProductDetail() {
@@ -109,7 +113,9 @@ function ProductDetail() {
   const route = useRoute();
   const { product: passedProduct, productId } = route.params || {};
   const { isDarkMode } = useDarkMode();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+
+  const isRTL = i18n.language === 'ar' || I18nManager.isRTL;
 
   const lookupId = productId || passedProduct?.id;
   const product = allProducts.find((p) => String(p.id) === String(lookupId)) || passedProduct;
@@ -121,7 +127,6 @@ function ProductDetail() {
   const [isFavorite, setIsFavorite] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
 
-  const descriptionTextRef = useRef(null);
   const scrollViewRef = useRef(null);
   const carouselScrollViewRef = useRef(null);
   const screenWidth = Dimensions.get('window').width;
@@ -132,7 +137,7 @@ function ProductDetail() {
 
   const [selectedStorage, setSelectedStorage] = useState(initialStorage);
   const [displayedPrice, setDisplayedPrice] = useState(
-    initialStorage ? storagePricing[initialStorage] || 0 : Number(product?.price) || 0
+    initialStorage ? Number(storagePricing[initialStorage]) || 0 : Number(product?.price) || 0
   );
 
   useEffect(() => {
@@ -152,19 +157,13 @@ function ProductDetail() {
     })();
   }, [product?.id]);
 
-  useEffect(() => {
-    if (descriptionTextRef.current) {
-      descriptionTextRef.current.measure((x, y, w, h) => {
-        if (h > 72) setShouldReadMore(true);
-      });
-    }
-  }, [product?.description]);
-
   if (!product) {
     return (
       <SafeAreaView style={[styles.safeArea, isDarkMode && styles.darkSafeArea]}>
         <View style={[styles.container, isDarkMode && styles.darkContainer, styles.center]}>
-          <Text style={[styles.headerTitle, isDarkMode && styles.darkText]}>{t('Product Not Found')}</Text>
+          <Text style={[styles.headerTitle, isDarkMode && styles.darkText]}>
+            {t('Product Not Found')}
+          </Text>
           <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginTop: 20 }}>
             <Text style={[styles.readMore, isDarkMode && styles.darkReadMore]}>{t('Go Back')}</Text>
           </TouchableOpacity>
@@ -183,7 +182,6 @@ function ProductDetail() {
     if (img.uri) return !img.uri.includes('via.placeholder.com');
     return false;
   };
-
   const normalize = (img) => (typeof img === 'string' ? { uri: img } : img);
 
   const rawImages = Array.isArray(product.images) ? product.images.filter(isValidSource) : [];
@@ -212,6 +210,7 @@ function ProductDetail() {
       const existing = await AsyncStorage.getItem('favoriteProducts');
       let list = existing ? JSON.parse(existing) : [];
       list = list.filter((fav) => String(fav.id) !== String(id));
+
       if (next) {
         list.push({
           id,
@@ -234,10 +233,8 @@ function ProductDetail() {
     }
   };
 
-  /* ✅ الإضافة الحقيقية للسلة: الحفظ في AsyncStorage مباشرة */
   const handleAddToCart = async () => {
     if (isAdding) return;
-
     if (storageOptions.length > 0 && !selectedStorage) {
       Alert.alert(t('Select Storage'), t('Please select a storage option.'));
       return;
@@ -255,7 +252,6 @@ function ProductDetail() {
       discount: Number(product.discount) || 0,
       storage,
       quantity: qty,
-      // ممكن تكون رقم (require) أو نص (URL) — الاتنين متدعمين في Cart
       image: product.image ?? (displayImages.length > 0 ? displayImages[0] : null),
     };
 
@@ -263,7 +259,6 @@ function ProductDetail() {
     try {
       const saved = await AsyncStorage.getItem('cart');
       const list = saved ? JSON.parse(saved) : [];
-
       const index = list.findIndex(
         (it) => String(it.id) === String(newItem.id) && (it.storage ?? null) === storage
       );
@@ -288,7 +283,8 @@ function ProductDetail() {
     }
   };
 
-  const heartBg = isDarkMode ? '#292929' : '#ffffff';
+  const iconColor = isDarkMode ? '#FFFFFF' : '#000000';
+  const heartBg = isDarkMode ? '#292929' : '#FFFFFF';
 
   return (
     <SafeAreaView style={[styles.safeArea, isDarkMode && styles.darkSafeArea]}>
@@ -303,9 +299,11 @@ function ProductDetail() {
             onPress={() => navigation.goBack()}
             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           >
-            <BackArrowIcon size={24} color={isDarkMode ? 'white' : 'black'} />
+            <BackArrow size={26} color={iconColor} flip={isRTL} />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, isDarkMode && styles.darkText]}>{t('Product Details')}</Text>
+          <Text style={[styles.headerTitle, isDarkMode && styles.darkText]}>
+            {t('Product Details')}
+          </Text>
           <View style={styles.menuButton} />
         </View>
 
@@ -353,12 +351,13 @@ function ProductDetail() {
         </View>
 
         <View style={[styles.productInfo, isDarkMode && styles.darkProductInfo]}>
-          <View style={styles.nameAndFavorite}>
+          <View style={[styles.nameAndFavorite, isRTL && { flexDirection: 'row-reverse' }]}>
             <Text style={[styles.productName, isDarkMode && styles.darkText]}>{name}</Text>
             <TouchableOpacity
               onPress={toggleFavorite}
               style={styles.favoriteButton}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              activeOpacity={0.7}
             >
               <View
                 style={[
@@ -367,26 +366,24 @@ function ProductDetail() {
                   isFavorite && styles.favoriteIconContainerActive,
                 ]}
               >
-                <HeartIcon
-                  size={20}
-                  filled={isFavorite}
-                  color={isFavorite ? '#F8D247' : isDarkMode ? 'white' : 'black'}
-                  bgColor={heartBg}
-                />
+                {/* ✅ مفرّغ لو مش مفضلة — أصفر مصمت لما تدوس */}
+                <Heart size={20} filled={isFavorite} stroke={iconColor} bg={heartBg} />
               </View>
             </TouchableOpacity>
           </View>
 
-          <Text style={[styles.productCategory, isDarkMode && styles.darkTextSecondary]}>{category}</Text>
+          <Text style={[styles.productCategory, isDarkMode && styles.darkTextSecondary]}>
+            {category}
+          </Text>
 
-          <View style={styles.priceContainer}>
+          <View style={[styles.priceContainer, isRTL && { flexDirection: 'row-reverse' }]}>
             <Text style={[styles.currentPrice, isDarkMode && styles.darkText]}>
               ${Number(displayedPrice).toFixed(2)}
             </Text>
           </View>
 
           {storageOptions.length > 0 && (
-            <View style={styles.storageSelector}>
+            <View style={[styles.storageSelector, isRTL && { flexDirection: 'row-reverse' }]}>
               {storageOptions.map((storage, index) => (
                 <TouchableOpacity
                   key={index}
@@ -407,16 +404,18 @@ function ProductDetail() {
           )}
 
           <Text
-            ref={descriptionTextRef}
-            style={[styles.description, isDarkMode && styles.darkText]}
+            style={[styles.description, isDarkMode && styles.darkText, isRTL && { textAlign: 'right' }]}
             numberOfLines={descriptionExpanded ? undefined : 3}
+            onTextLayout={(e) => {
+              if (!descriptionExpanded && e.nativeEvent.lines.length >= 3) setShouldReadMore(true);
+            }}
           >
             {description}
           </Text>
 
           {shouldReadMore && (
             <TouchableOpacity onPress={toggleDescription}>
-              <Text style={[styles.readMore, isDarkMode && styles.darkReadMore]}>
+              <Text style={[styles.readMore, isDarkMode && styles.darkReadMore, isRTL && { textAlign: 'right' }]}>
                 {descriptionExpanded ? t('Read less') : t('Read more')}
               </Text>
             </TouchableOpacity>
@@ -426,7 +425,7 @@ function ProductDetail() {
         </View>
       </ScrollView>
 
-      <View style={[styles.bottomBar, isDarkMode && styles.darkBottomBar]}>
+      <View style={[styles.bottomBar, isDarkMode && styles.darkBottomBar, isRTL && { flexDirection: 'row-reverse' }]}>
         <View style={[styles.quantityContainer, isDarkMode && styles.darkQuantityContainer]}>
           <TouchableOpacity
             style={[styles.quantityButton, isDarkMode && styles.darkQuantityButton]}
@@ -434,7 +433,9 @@ function ProductDetail() {
           >
             <MinusIcon size={20} color="#fff" />
           </TouchableOpacity>
+
           <Text style={[styles.quantityText, isDarkMode && styles.darkQuantityText]}>{quantity}</Text>
+
           <TouchableOpacity
             style={[styles.quantityButton, isDarkMode && styles.darkQuantityButton]}
             onPress={() => setQuantity((q) => q + 1)}
@@ -448,6 +449,7 @@ function ProductDetail() {
             styles.addToCartButtonLarge,
             isDarkMode && styles.darkAddToCartButtonLarge,
             isAdding && { opacity: 0.6 },
+            isRTL ? { marginRight: 16, marginLeft: 0 } : null,
           ]}
           onPress={handleAddToCart}
           disabled={isAdding}

@@ -1,4 +1,4 @@
-// Profile.js (fixed: no stray text nodes between JSX siblings)
+// Profile.js
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
@@ -9,6 +9,7 @@ import {
   ScrollView,
   Alert,
   Animated,
+  I18nManager,
 } from 'react-native';
 import { AntDesign, Ionicons, FontAwesome } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -17,15 +18,27 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTranslation } from 'react-i18next';
 import './i18n';
 import { useDarkMode } from './DarkModeContext';
-import styled from 'styled-components/native';
 
-// --- Constants (Smaller Switch) ---
+/* ============================================================
+   ✅ إعداد السويتش لكل لغة على حدة — عدّل هنا براحتك
+   start  : الدايرة تقف فين وهي مقفولة  → 'left' أو 'right'
+   moveTo : تروح فين لما تفتح            → 'left' أو 'right'
+   ⚠️ لازم يكونوا مختلفين وإلا الدايرة مش هتتحرك
+   ============================================================ */
+const SWITCH_CONFIG = {
+  en: { start: 'left',  moveTo: 'right' },   // 👈 الإنجليزي
+  ar: { start: 'right', moveTo: 'left'  },   // 👈 العربي
+};
+
+// --- Switch Constants ---
 const SWITCH_WIDTH = 62;
 const THUMB_SIZE = 22;
 const PADDING = 2;
+const BORDER = 1;
+const TRACK_HEIGHT = THUMB_SIZE + PADDING * 2 + 2;
 const TRACK_ICON_SIZE = 14;
+const TRAVEL = SWITCH_WIDTH - BORDER * 2 - PADDING * 2 - THUMB_SIZE; // = 34
 
-// --- Custom Switch Styles ---
 const switchColors = {
   lightBg: '#424242',
   thumbLight: '#E0E0E0',
@@ -33,35 +46,7 @@ const switchColors = {
   darkBg: '#BDBDBD',
   thumbDark: '#424242',
   iconDarkColor: '#FFEB3B',
-  border: 'transparent',
 };
-
-const SwitchContainer = styled(TouchableOpacity)`
-  position: relative;
-  width: ${SWITCH_WIDTH}px;
-  height: ${THUMB_SIZE + PADDING * 2 + 2}px;
-  border-radius: ${(THUMB_SIZE + PADDING * 2 + 2) / 2}px;
-  border-width: 1px;
-  border-style: solid;
-  border-color: ${({ isActive }) => (isActive ? switchColors.darkBg : switchColors.lightBg)};
-  background-color: ${({ isActive }) => (isActive ? switchColors.darkBg : switchColors.lightBg)};
-  justify-content: center;
-  padding: ${PADDING}px;
-  overflow: hidden;
-`;
-
-const Thumb = styled(Animated.View)`
-  width: ${THUMB_SIZE}px;
-  height: ${THUMB_SIZE}px;
-  border-radius: ${THUMB_SIZE / 2}px;
-  background-color: ${({ isActive }) => (isActive ? switchColors.thumbDark : switchColors.thumbLight)};
-  position: absolute;
-  elevation: 2;
-  shadow-color: #000;
-  shadow-offset: 0px 1px;
-  shadow-opacity: 0.2;
-  shadow-radius: 1px;
-`;
 
 const ProfileScreen = () => {
   const { t, i18n } = useTranslation();
@@ -74,7 +59,22 @@ const ProfileScreen = () => {
   const [userBirthDate, setUserBirthDate] = useState('');
   const { isDarkMode, toggleDarkMode } = useDarkMode();
 
-  // --- Animation Logic ---
+  const isRTL = i18n.language === 'ar' || I18nManager.isRTL;
+
+  /* ---------- منطق السويتش ---------- */
+  // اختار الإعداد حسب اللغة الحالية
+  const cfg = SWITCH_CONFIG[i18n.language === 'ar' ? 'ar' : 'en'] || SWITCH_CONFIG.en;
+
+  // نقطة البداية كموضع فيزيائي حقيقي (مش متأثرة بقلب RTL)
+  const startRow =
+    cfg.start === 'left'
+      ? (I18nManager.isRTL ? 'row-reverse' : 'row')
+      : (I18nManager.isRTL ? 'row' : 'row-reverse');
+
+  // اتجاه الحركة: +1 يمين ، -1 شمال
+  const direction = cfg.moveTo === 'right' ? 1 : -1;
+
+  // --- Animation ---
   const switchAnimatedValue = useRef(new Animated.Value(isDarkMode ? 1 : 0)).current;
   const sunOpacity = useRef(new Animated.Value(isDarkMode ? 1 : 0)).current;
   const moonOpacity = useRef(new Animated.Value(isDarkMode ? 0 : 1)).current;
@@ -101,17 +101,10 @@ const ProfileScreen = () => {
 
   const thumbTranslateX = switchAnimatedValue.interpolate({
     inputRange: [0, 1],
-    outputRange: [PADDING, SWITCH_WIDTH - THUMB_SIZE - PADDING],
+    outputRange: [0, TRAVEL * direction],
   });
 
-  const animatedThumbPositionStyle = {
-    transform: [{ translateX: thumbTranslateX }],
-    top: PADDING,
-  };
-  const animatedSunStyle = { opacity: sunOpacity };
-  const animatedMoonStyle = { opacity: moonOpacity };
-
-  // --- Component Functions ---
+  // --- Functions ---
   const saveProfileImage = async (imageUri) => {
     if (!imageUri) return;
     try {
@@ -128,6 +121,7 @@ const ProfileScreen = () => {
       aspect: [1, 1],
       quality: 1,
     });
+
     if (!result.canceled && result.assets && result.assets[0]) {
       const newUri = result.assets[0].uri;
       setProfileImage(newUri);
@@ -191,15 +185,15 @@ const ProfileScreen = () => {
     try {
       const loggedInEmail = await AsyncStorage.getItem('loggedInEmail');
       const keysToRemove = ['userProfileImage', 'isLoggedIn', 'loggedInEmail'];
-      if (loggedInEmail) {
-        keysToRemove.push(`user:${loggedInEmail}`);
-      }
+      if (loggedInEmail) keysToRemove.push(`user:${loggedInEmail}`);
       await AsyncStorage.multiRemove(keysToRemove);
+
       setUserName('');
       setUserEmail('');
       setUserRegion('');
       setUserBirthDate('');
       setProfileImage(null);
+
       navigation.reset({ index: 0, routes: [{ name: 'FirstPage' }] });
     } catch (error) {
       console.error('Error during logout:', error);
@@ -222,6 +216,7 @@ const ProfileScreen = () => {
   const handleToggleDarkMode = async () => {
     const newValue = !isDarkMode;
     await toggleDarkMode();
+
     navigation.setOptions({
       tabBarStyle: {
         backgroundColor: newValue ? '#1e1e1e' : '#FFFFFF',
@@ -273,13 +268,15 @@ const ProfileScreen = () => {
             style={styles.profileImage}
           />
         </TouchableOpacity>
-        <View style={[styles.userInfo, isDarkMode && styles.darkUserInfo]}>
+
+        <View style={styles.userInfo}>
           <Text style={[styles.name, isDarkMode && styles.darkText]}>
             {userName || t('Your Name')}
           </Text>
           <Text style={[styles.username, isDarkMode && styles.darkText]}>{usernameHandle}</Text>
           <Text style={[styles.email, isDarkMode && styles.darkText]}>{userEmail}</Text>
         </View>
+
         <TouchableOpacity
           style={[styles.editButton, isDarkMode && styles.darkEditButton]}
           onPress={() => {
@@ -300,8 +297,8 @@ const ProfileScreen = () => {
         </TouchableOpacity>
       </View>
 
-      {/* Options Section */}
-      <View style={[styles.options, isDarkMode && styles.darkOptions]}>
+      {/* Options */}
+      <View style={styles.options}>
         {/* Favourites */}
         <TouchableOpacity
           style={[
@@ -323,7 +320,11 @@ const ProfileScreen = () => {
               {t('Favourites')}
             </Text>
           </View>
-          <AntDesign name="right" size={18} color={isDarkMode ? '#aaa' : '#ccc'} />
+          <AntDesign
+            name={isRTL ? 'left' : 'right'}
+            size={18}
+            color={isDarkMode ? '#aaa' : '#ccc'}
+          />
         </TouchableOpacity>
 
         {/* Dark Mode */}
@@ -331,14 +332,13 @@ const ProfileScreen = () => {
           style={[
             styles.option,
             styles.optionSeparator,
-            { justifyContent: 'space-between' },
             isDarkMode && styles.darkOption,
             isDarkMode && styles.darkOptionSeparator,
           ]}
         >
           <View style={styles.optionContent}>
-            <AntDesign
-              name="bulb1"
+            <Ionicons
+              name="bulb-outline"
               size={22}
               color={isDarkMode ? '#fff' : '#ffdd00'}
               style={styles.optionIcon}
@@ -347,22 +347,44 @@ const ProfileScreen = () => {
               {t('Dark Mode')}
             </Text>
           </View>
-          <SwitchContainer
-            activeOpacity={0.8}
+
+          {/* ✅ السويتش */}
+          <TouchableOpacity
+            activeOpacity={0.85}
             onPress={handleToggleDarkMode}
-            isActive={isDarkMode}
             accessibilityRole="switch"
             accessibilityState={{ checked: isDarkMode }}
             accessibilityLabel={t('Dark Mode')}
+            style={[
+              styles.switchTrack,
+              {
+                flexDirection: startRow,
+                backgroundColor: isDarkMode ? switchColors.darkBg : switchColors.lightBg,
+                borderColor: isDarkMode ? switchColors.darkBg : switchColors.lightBg,
+              },
+            ]}
           >
-            <Animated.View style={[styles.iconWrapper, styles.sunIconPosition, animatedSunStyle]}>
-              <Ionicons name="sunny" size={TRACK_ICON_SIZE} color={switchColors.iconDarkColor} />
-            </Animated.View>
-            <Animated.View style={[styles.iconWrapper, styles.moonIconPosition, animatedMoonStyle]}>
-              <Ionicons name="moon" size={TRACK_ICON_SIZE} color={switchColors.iconLightColor} />
-            </Animated.View>
-            <Thumb style={animatedThumbPositionStyle} isActive={isDarkMode} />
-          </SwitchContainer>
+            {/* أيقونات الخلفية */}
+            <View style={[styles.iconsOverlay, { flexDirection: startRow }]} pointerEvents="none">
+              <Animated.View style={[styles.iconSlot, { opacity: sunOpacity }]}>
+                <Ionicons name="sunny" size={TRACK_ICON_SIZE} color={switchColors.iconDarkColor} />
+              </Animated.View>
+              <Animated.View style={[styles.iconSlot, { opacity: moonOpacity }]}>
+                <Ionicons name="moon" size={TRACK_ICON_SIZE} color={switchColors.iconLightColor} />
+              </Animated.View>
+            </View>
+
+            {/* الدايرة */}
+            <Animated.View
+              style={[
+                styles.thumb,
+                {
+                  backgroundColor: isDarkMode ? switchColors.thumbDark : switchColors.thumbLight,
+                  transform: [{ translateX: thumbTranslateX }],
+                },
+              ]}
+            />
+          </TouchableOpacity>
         </View>
 
         {/* Language */}
@@ -371,15 +393,19 @@ const ProfileScreen = () => {
           onPress={() => navigation.navigate('ChangeLanguage')}
         >
           <View style={styles.optionContent}>
-            <AntDesign
-              name="earth"
+            <Ionicons
+              name="globe-outline"
               size={22}
               color={isDarkMode ? '#fff' : '#ffdd00'}
               style={styles.optionIcon}
             />
             <Text style={[styles.optionLabel, isDarkMode && styles.darkText]}>{t('Language')}</Text>
           </View>
-          <AntDesign name="right" size={18} color={isDarkMode ? '#aaa' : '#ccc'} />
+          <AntDesign
+            name={isRTL ? 'left' : 'right'}
+            size={18}
+            color={isDarkMode ? '#aaa' : '#ccc'}
+          />
         </TouchableOpacity>
 
         {/* Logout */}
@@ -388,16 +414,8 @@ const ProfileScreen = () => {
           onPress={handleLogout}
         >
           <View style={styles.optionContent}>
-            <AntDesign name="logout" size={22} color={'#FF5757'} style={styles.optionIcon} />
-            <Text
-              style={[
-                styles.optionLabel,
-                styles.logoutOptionText,
-                isDarkMode && styles.darkLogoutOptionText,
-              ]}
-            >
-              {t('Log out')}
-            </Text>
+            <Ionicons name="log-out-outline" size={22} color="#FF5757" style={styles.optionIcon} />
+            <Text style={[styles.optionLabel, styles.logoutOptionText]}>{t('Log out')}</Text>
           </View>
         </TouchableOpacity>
       </View>
@@ -409,6 +427,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f8f8f8' },
   darkContainer: { backgroundColor: '#121212' },
   scrollContent: { flexGrow: 1, paddingBottom: 20 },
+
   header: {
     paddingTop: 16,
     paddingBottom: 12,
@@ -420,6 +439,7 @@ const styles = StyleSheet.create({
   darkHeader: { borderBottomColor: '#333', backgroundColor: '#1e1e1e' },
   title: { fontSize: 18, fontWeight: 'bold', textAlign: 'center', color: '#000' },
   darkTitle: { color: '#fff' },
+
   profileInfo: {
     alignItems: 'center',
     paddingVertical: 20,
@@ -441,11 +461,11 @@ const styles = StyleSheet.create({
   },
   profileImage: { width: '100%', height: '100%', borderRadius: 58 },
   userInfo: { alignItems: 'center', marginBottom: 16 },
-  darkUserInfo: {},
   name: { fontSize: 18, fontWeight: 'bold', color: '#333' },
   username: { fontSize: 16, color: '#777777', marginTop: 2 },
   email: { fontSize: 14, color: '#777777', marginTop: 4 },
   darkText: { color: '#e0e0e0' },
+
   editButton: {
     backgroundColor: '#ffdd00',
     paddingVertical: 10,
@@ -467,8 +487,8 @@ const styles = StyleSheet.create({
   },
   editButtonText: { color: '#333', fontSize: 16, fontWeight: 'bold' },
   darkEditButtonText: { color: '#fff' },
+
   options: {},
-  darkOptions: {},
   option: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -482,20 +502,44 @@ const styles = StyleSheet.create({
   optionSeparator: { borderBottomWidth: 1, borderBottomColor: '#f0f0f0' },
   darkOptionSeparator: { borderBottomColor: '#333' },
   optionContent: { flexDirection: 'row', alignItems: 'center', flex: 1 },
-  optionIcon: { width: 24, textAlign: 'center', marginRight: 16 },
+  optionIcon: { width: 24, textAlign: 'center', marginHorizontal: 8 },
   optionLabel: { fontSize: 16, color: '#333', flexShrink: 1 },
   logoutOptionText: { color: '#FF5757', fontWeight: '500' },
-  darkLogoutOptionText: { color: '#FF5757' },
-  iconWrapper: {
+
+  /* ---- Switch ---- */
+  switchTrack: {
+    width: SWITCH_WIDTH,
+    height: TRACK_HEIGHT,
+    borderRadius: TRACK_HEIGHT / 2,
+    borderWidth: BORDER,
+    padding: PADDING,
+    alignItems: 'center',
+    overflow: 'hidden',
+    flexGrow: 0,
+    flexShrink: 0,
+  },
+  iconsOverlay: {
     position: 'absolute',
     top: 0,
     bottom: 0,
-    justifyContent: 'center',
+    left: 0,
+    right: 0,
     alignItems: 'center',
-    width: THUMB_SIZE,
+    justifyContent: 'space-between',
+    paddingHorizontal: PADDING + 3,
   },
-  sunIconPosition: { left: PADDING },
-  moonIconPosition: { right: PADDING },
+  iconSlot: { alignItems: 'center', justifyContent: 'center' },
+  thumb: {
+    width: THUMB_SIZE,
+    height: THUMB_SIZE,
+    borderRadius: THUMB_SIZE / 2,
+    elevation: 4,
+    zIndex: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 1,
+  },
 });
 
 export default ProfileScreen;

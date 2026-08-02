@@ -2,14 +2,26 @@
 import React, { useState, useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { View, Image, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
+import {
+  View,
+  Image,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  ScrollView,
+  I18nManager,
+} from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StripeProvider } from '@stripe/stripe-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Updates from 'expo-updates';
 import { STRIPE_PUBLISHABLE_KEY } from './config';
 
 // ✅ الـ Context الموحّد
 import { DarkModeProvider } from './DarkModeContext';
+
+// ✅ i18n — لازم يتحمّل قبل أي شاشة
+import i18n, { loadStoredLanguage } from './i18n';
 
 // Screens
 import SignUp from './signup';
@@ -31,15 +43,11 @@ import PopularProductsScreen from './PopularProducts';
 import NewArrivalsScreen from './NewArrivals';
 import NotificationsScreen from './Notifications';
 import Dashboard from './Dashboard';
-
-// ✅ الشاشة الناقصة اللي بتسبب الإيرور
 import ProductDetail from './ProductDetail';
-// (لو عندك ملف Products.js منفصل ومش جوه الـ Dashboard، فكّ الكومنت ده)
 // import ProductsScreen from './Products';
 
 import sales from './assets/sales.png';
 import salesImage from './assets/sign.png';
-import './i18n';
 
 const Stack = createNativeStackNavigator();
 
@@ -120,22 +128,63 @@ const FirstPage = ({ navigation }) => {
 const App = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [initialRoute, setInitialRoute] = useState('FirstPage');
+  const [langKey, setLangKey] = useState(i18n.language);
 
   useEffect(() => {
     const bootstrap = async () => {
       let route = 'FirstPage';
+
+      // ✅ 1) اللغة المحفوظة + ضبط RTL
+      try {
+        const lang = await loadStoredLanguage();
+        const shouldBeRTL = lang === 'ar';
+
+        if (I18nManager.isRTL !== shouldBeRTL) {
+          I18nManager.allowRTL(shouldBeRTL);
+          I18nManager.forceRTL(shouldBeRTL);
+
+          // forceRTL مايشتغلش غير بعد reload — نعمله مرة واحدة بس
+          const alreadyReloaded = await AsyncStorage.getItem('rtlReloadDone');
+          if (alreadyReloaded !== String(shouldBeRTL)) {
+            await AsyncStorage.setItem('rtlReloadDone', String(shouldBeRTL));
+            try {
+              await Updates.reloadAsync();
+              return; // التطبيق هيقفل ويفتح تاني
+            } catch (reloadErr) {
+              console.warn('RTL reload skipped:', reloadErr?.message);
+            }
+          }
+        } else {
+          await AsyncStorage.setItem('rtlReloadDone', String(shouldBeRTL));
+        }
+
+        setLangKey(lang);
+      } catch (e) {
+        console.error('i18n bootstrap error:', e);
+      }
+
+      // ✅ 2) حالة تسجيل الدخول
       try {
         const loggedIn = await AsyncStorage.getItem('isLoggedIn');
         if (loggedIn === 'true') route = 'Dashboard';
       } catch (e) {
         console.error('Auth check error:', e);
       }
+
       setTimeout(() => {
         setInitialRoute(route);
         setIsLoading(false);
       }, 2500);
     };
+
     bootstrap();
+  }, []);
+
+  // ✅ 3) أعِد رندر التطبيق كله لما اللغة تتغير من شاشة اللغة
+  useEffect(() => {
+    const onLangChanged = (lng) => setLangKey(lng);
+    i18n.on('languageChanged', onLangChanged);
+    return () => i18n.off('languageChanged', onLangChanged);
   }, []);
 
   if (isLoading) {
@@ -150,7 +199,7 @@ const App = () => {
     <SafeAreaProvider>
       <DarkModeProvider>
         <StripeProvider publishableKey={STRIPE_PUBLISHABLE_KEY}>
-          <NavigationContainer>
+          <NavigationContainer key={langKey}>
             <Stack.Navigator initialRouteName={initialRoute}>
               <Stack.Screen name="FirstPage" component={FirstPage} options={{ headerShown: false }} />
               <Stack.Screen name="SignUp" component={SignUp} options={{ headerShown: false }} />
@@ -159,12 +208,9 @@ const App = () => {
               <Stack.Screen name="VerifyEmail" component={VerifyEmailScreen} options={{ headerShown: false }} />
               <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} options={{ headerShown: false }} />
               <Stack.Screen name="Dashboard" component={Dashboard} options={{ headerShown: false }} />
-
-              {/* ✅ الإضافات المهمة */}
               <Stack.Screen name="ProductDetail" component={ProductDetail} options={{ headerShown: false }} />
               <Stack.Screen name="Cart" component={CartScreen} options={{ headerShown: false }} />
               {/* <Stack.Screen name="Products" component={ProductsScreen} options={{ headerShown: false }} /> */}
-
               <Stack.Screen name="ReportScreen" component={Report} options={{ title: 'Report' }} />
               <Stack.Screen name="EditProfile" component={EditProfileScreen} options={{ headerShown: false }} />
               <Stack.Screen name="MyFavorites" component={MyFavoritesScreen} options={{ headerShown: false }} />
@@ -201,6 +247,7 @@ const styles = StyleSheet.create({
   nextButton: { width: '100%', paddingVertical: 15, paddingHorizontal: 15, backgroundColor: '#ffdd00', borderRadius: 25, alignItems: 'center' },
   buttonText1: { color: '#000', fontSize: 18, fontWeight: 'bold', textAlign: 'center' },
   bottomContent: { alignItems: 'center', paddingHorizontal: 20, width: '100%' },
+
   appWrapper2: { flex: 1, backgroundColor: '#fff' },
   imageContainer: { position: 'absolute', top: 60, left: 0, right: 0, alignItems: 'center' },
   illustration2: { width: 250, height: 250, resizeMode: 'contain' },

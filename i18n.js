@@ -140,8 +140,10 @@ const en = {
   CVV: 'CVV',
   Phone: 'Phone',
   'Please fill in all card details correctly.': 'Please fill in all card details correctly.',
+
   // --- Order Tracking ---
   myOrders: 'My Orders',
+  Order: 'Order',
   order: 'Order',
   cashOnDelivery: 'Cash on Delivery',
   expDeliveryBy: 'Exp. Delivery by',
@@ -155,6 +157,23 @@ const en = {
   awaitingTransit: 'Awaiting transit',
   awaitingDelivery: 'Awaiting delivery',
   dateTimeSeparator: ' | ',
+
+  // --- Orders screen states ---
+  Retry: 'Retry',
+  noOrdersYet: 'You have no orders yet.',
+  networkError: 'Connection failed. Please check your internet and try again.',
+  authError: 'Please sign in to view your orders.',
+  genericError: 'Something went wrong. Please try again.',
+
+  // --- Order statuses ---
+  pending: 'Pending',
+  paid: 'Paid',
+  processing: 'Processing',
+  shipped: 'Shipped',
+  delivered: 'Delivered',
+  cancelled: 'Cancelled',
+  failed: 'Failed',
+
   // --- Alerts ---
   'alert.addPaymentInfo': 'Please add payment information before proceeding.',
   'alert.addShippingAddress': 'Please add shipping address before proceeding.',
@@ -295,8 +314,10 @@ const ar = {
   CVV: 'رمز التحقق',
   Phone: 'هاتف',
   'Please fill in all card details correctly.': 'يرجى ملء جميع تفاصيل البطاقة بشكل صحيح.',
+
   // --- Order Tracking ---
   myOrders: 'طلباتي',
+  Order: 'طلب رقم',
   order: 'طلب رقم',
   cashOnDelivery: 'الدفع عند الاستلام',
   expDeliveryBy: 'التسليم المتوقع بحلول',
@@ -310,6 +331,23 @@ const ar = {
   awaitingTransit: 'بانتظار النقل',
   awaitingDelivery: 'بانتظار التوصيل',
   dateTimeSeparator: ' | ',
+
+  // --- حالات شاشة الطلبات ---
+  Retry: 'إعادة المحاولة',
+  noOrdersYet: 'لا توجد لديك طلبات بعد.',
+  networkError: 'فشل الاتصال بالخادم. تأكد من الإنترنت وحاول مرة أخرى.',
+  authError: 'يرجى تسجيل الدخول لعرض طلباتك.',
+  genericError: 'حدث خطأ ما. برجاء المحاولة مرة أخرى.',
+
+  // --- حالات الطلب ---
+  pending: 'قيد الانتظار',
+  paid: 'مدفوع',
+  processing: 'قيد التجهيز',
+  shipped: 'تم الشحن',
+  delivered: 'تم التوصيل',
+  cancelled: 'ملغي',
+  failed: 'فشل',
+
   // --- Alerts ---
   'alert.addPaymentInfo': 'يرجى إضافة معلومات الدفع قبل المتابعة.',
   'alert.addShippingAddress': 'يرجى إضافة عنوان الشحن قبل المتابعة.',
@@ -334,7 +372,7 @@ const getDeviceLanguage = () => {
   return 'en';
 };
 
-// ✅ init متزامن (synchronous) — ده أهم تغيير
+// ✅ init متزامن (synchronous)
 i18n.use(initReactI18next).init({
   compatibilityJSON: 'v3',
   resources: {
