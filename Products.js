@@ -98,7 +98,6 @@ const SearchIcon = ({ size = 24, color = '#000' }) => (
 const ProductsScreen = () => {
   const navigation = useNavigation();
   const { t } = useTranslation();
-
   const [showPopularProducts, setShowPopularProducts] = useState(true);
   const [showNewArrivals, setShowNewArrivals] = useState(true);
   const [showSpecialOffers, setShowSpecialOffers] = useState(true);
@@ -648,7 +647,34 @@ const HorizontalFilters = ({ handleFilterChange, openFilterModal, activeInlineFi
   );
 };
 
-/* ============ ✅ الـ Checkbox بعد التعديل ============ */
+/* ============ ✅ الصح مرسوم بـ Views — نفس الشكل بالظبط في العربي والإنجليزي ============ */
+const CheckMark = ({ color = '#fff' }) => (
+  <View style={styles.checkMarkWrapper} pointerEvents="none">
+    {/* الذراع القصيرة */}
+    <View
+      style={[
+        styles.checkArm,
+        {
+          height: 7,
+          backgroundColor: color,
+          transform: [{ translateX: -4 }, { translateY: 2 }, { rotate: '-45deg' }],
+        },
+      ]}
+    />
+    {/* الذراع الطويلة */}
+    <View
+      style={[
+        styles.checkArm,
+        {
+          height: 13,
+          backgroundColor: color,
+          transform: [{ translateX: 2 }, { translateY: -1 }, { rotate: '45deg' }],
+        },
+      ]}
+    />
+  </View>
+);
+
 const YellowCheckbox = ({ isSelected, isDarkMode }) => (
   <View
     style={[
@@ -657,20 +683,14 @@ const YellowCheckbox = ({ isSelected, isDarkMode }) => (
       isSelected && styles.checkboxYellow,
     ]}
   >
-    {isSelected && <View style={styles.checkMark} />}
+    {isSelected && <CheckMark color="#fff" />}
   </View>
 );
 
 const FilterModalContent = ({ activeModalFilter, handleFilterChange, t, isDarkMode }) => {
-  const { i18n } = useTranslation();
-  const isRTL = i18n.language === 'ar';
-
   const Option = ({ value, label }) => (
-    <View style={[styles.modalOption, isDarkMode && styles.darkModalOption, isRTL && { flexDirection: 'row-reverse' }]}>
-      <TouchableOpacity
-        onPress={() => handleFilterChange(value)}
-        style={[styles.modalOptionTouchable, isRTL ? { marginRight: 8 } : { marginLeft: 8 }]}
-      >
+    <View style={[styles.modalOption, isDarkMode && styles.darkModalOption]}>
+      <TouchableOpacity onPress={() => handleFilterChange(value)} style={styles.modalOptionTouchable}>
         <Text style={[styles.modalOptionText, isDarkMode && styles.darkModalOptionText]}>{label}</Text>
       </TouchableOpacity>
       <YellowCheckbox isSelected={activeModalFilter === value} isDarkMode={isDarkMode} />
@@ -858,7 +878,6 @@ const NewArrivals = React.forwardRef(({ products, title, toggleFavorite, t, isDa
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#fff' },
   container: { flex: 1 },
-
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -898,14 +917,12 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     includeFontPadding: false,
   },
-
   searchInputContainer: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, zIndex: 3 },
   searchInput: {
     flex: 1, height: 40, borderColor: 'gray', borderWidth: 1, borderRadius: 20,
     paddingHorizontal: 16, backgroundColor: '#f8f8f8',
   },
   closeIcon: { marginLeft: -40, padding: 10 },
-
   filtersContainer: { marginBottom: 20, paddingHorizontal: 16, paddingTop: 4 },
   filterButton: {
     paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: '#ddd',
@@ -914,7 +931,6 @@ const styles = StyleSheet.create({
   activeFilter: { backgroundColor: '#F8D247', borderColor: '#F8D247' },
   activeFilterText: { color: 'white' },
   filterText: { color: 'black' },
-
   section: { marginBottom: 20 },
   sectionHeader: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
@@ -922,7 +938,6 @@ const styles = StyleSheet.create({
   },
   sectionTitle: { fontSize: 20, fontWeight: 'bold', color: 'black' },
   viewMore: { color: '#F8D247', fontSize: 15 },
-
   productCard: {
     flexDirection: 'row', backgroundColor: '#f8f8f8', borderRadius: 10, padding: 10,
     marginBottom: 10, marginHorizontal: 16, position: 'relative',
@@ -934,7 +949,6 @@ const styles = StyleSheet.create({
   priceContainer: { flexDirection: 'row', alignItems: 'center' },
   oldPrice: { textDecorationLine: 'line-through', color: '#999', marginRight: 5 },
   currentPrice: { fontSize: 16, fontWeight: 'bold', color: '#F8D247' },
-
   productRow: { flexDirection: 'row', alignItems: 'center', position: 'relative' },
   scrollViewContent: { paddingVertical: 10, paddingLeft: 16, paddingRight: 16, flexDirection: 'row' },
   productCardSmall: { backgroundColor: '#f8f8f8', borderRadius: 10, padding: 10, marginBottom: 10, position: 'relative' },
@@ -944,13 +958,11 @@ const styles = StyleSheet.create({
   productBrand: { fontSize: 12, color: '#666', marginBottom: 5 },
   priceSmall: { fontSize: 14, fontWeight: 'bold', color: '#F8D247' },
   favoriteIcon: { position: 'absolute', top: 10, right: 10 },
-
   newArrivalBadge: {
     position: 'absolute', top: 10, left: 10, backgroundColor: 'red',
     borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2, zIndex: 1,
   },
   newArrivalBadgeText: { color: 'white', fontSize: 12, fontWeight: 'bold' },
-
   modalOverlay: { flex: 1, justifyContent: 'flex-start', backgroundColor: 'rgba(0,0,0,0.5)' },
   searchOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 2 },
   filterModal: { width: '70%', height: '100%', backgroundColor: 'white', paddingTop: 50, paddingHorizontal: 20 },
@@ -960,13 +972,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', gap: 7,
   },
   modalOptionText: { fontSize: 18, color: 'black' },
-  modalOptionTouchable: { flex: 1 },
-
+  modalOptionTouchable: { flex: 1, marginRight: 8 },
   noProductsText: { fontSize: 16, color: '#666', textAlign: 'center', marginTop: 20 },
   productsGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 11 },
   searchResultsContainer: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', paddingHorizontal: 16 },
   searchItemContainer: { width: '48%', marginBottom: 10 },
-
   darkSafeArea: { backgroundColor: '#121212' },
   darkContainer: { backgroundColor: '#121212' },
   darkHeader: { backgroundColor: '#121212' },
@@ -1001,7 +1011,7 @@ const styles = StyleSheet.create({
   darkSearchResultsContainer: {},
   darkSearchItemContainer: {},
 
-  /* ============ ✅ ستايلات الـ Checkbox المعدّلة ============ */
+  /* ============ ✅ ستايلات الـ Checkbox ============ */
   checkboxBase: {
     width: 24,
     height: 24,
@@ -1011,18 +1021,20 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#000',
     backgroundColor: 'transparent',
+    overflow: 'hidden',
   },
   checkboxBaseDark: { borderColor: '#fff' },
   checkboxYellow: { backgroundColor: '#F8D247', borderColor: '#F8D247' },
-  checkMark: {
-    width: 7,
-    height: 13,
-    borderRightWidth: 2.5,
-    borderBottomWidth: 2.5,
-    borderColor: '#fff',
-    transform: [{ rotate: '45deg' }],
-    marginTop: -2,
-    marginLeft: 1,
+  checkMarkWrapper: {
+    width: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkArm: {
+    position: 'absolute',
+    width: 2.5,
+    borderRadius: 2,
   },
 });
 

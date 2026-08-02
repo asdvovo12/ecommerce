@@ -69,7 +69,7 @@ const ProfileScreen = () => {
   const startRow =
     cfg.start === 'left'
       ? (I18nManager.isRTL ? 'row-reverse' : 'row')
-      : (I18nManager.isRTL ? 'row' : 'row-reverse');
+      : (I18nManager.isRTL ? 'row-reverse' : 'row');
 
   // اتجاه الحركة: +1 يمين ، -1 شمال
   const direction = cfg.moveTo === 'right' ? 1 : -1;
