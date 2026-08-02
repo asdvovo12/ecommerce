@@ -21,39 +21,58 @@ import { allProducts } from './ProductData';
 
 /* ============ أيقونات مرسومة بـ View ============ */
 
-// سهم رجوع تخين — الرأس مربع بحدّين مايل 45°، ومفيش scaleX
+/* ✅ سهم رجوع — transform فقط، مايتعكسش تلقائيًا في RTL
+   flip=false => بيبص شمال ← (الإنجليزي)
+   flip=true  => بيبص يمين → (العربي) */
 const BackArrow = ({ size = 26, color = '#000', thickness, flip = false }) => {
   const t = thickness || Math.max(3, size * 0.13);
-  const head = size * 0.42;
+  const shaft = size * 0.72;
+  const arm = size * 0.34;
+  const tipX = -shaft / 2;                 // طرف السهم
+  const armDX = tipX + arm * 0.5 * 0.707;  // مركز الذراع على الخط المايل
+  const armDY = arm * 0.5 * 0.707;
 
   return (
-    <View style={{ width: size, height: size }}>
+    <View
+      style={{
+        width: size,
+        height: size,
+        alignItems: 'center',
+        justifyContent: 'center',
+        transform: flip ? [{ rotate: '180deg' }] : [],
+      }}
+      pointerEvents="none"
+    >
       {/* الجسم */}
       <View
         style={{
           position: 'absolute',
-          left: size * 0.12,
-          top: (size - t) / 2,
-          width: size * 0.76,
+          width: shaft,
           height: t,
           borderRadius: t / 2,
           backgroundColor: color,
         }}
       />
-      {/* الرأس */}
+      {/* الذراع العلوية */}
       <View
         style={{
           position: 'absolute',
-          top: (size - head) / 2,
-          ...(flip ? { right: size * 0.12 } : { left: size * 0.12 }),
-          width: head,
-          height: head,
-          borderLeftWidth: flip ? 0 : t,
-          borderBottomWidth: flip ? 0 : t,
-          borderRightWidth: flip ? t : 0,
-          borderTopWidth: flip ? t : 0,
-          borderColor: color,
-          transform: [{ rotate: '45deg' }],
+          width: arm,
+          height: t,
+          borderRadius: t / 2,
+          backgroundColor: color,
+          transform: [{ translateX: armDX }, { translateY: -armDY }, { rotate: '-45deg' }],
+        }}
+      />
+      {/* الذراع السفلية */}
+      <View
+        style={{
+          position: 'absolute',
+          width: arm,
+          height: t,
+          borderRadius: t / 2,
+          backgroundColor: color,
+          transform: [{ translateX: armDX }, { translateY: armDY }, { rotate: '45deg' }],
         }}
       />
     </View>
@@ -65,7 +84,6 @@ const HeartShape = ({ size, color }) => {
   const a = size * 0.58;
   const off = size * 0.005;
   const piece = { position: 'absolute', width: a, height: a, backgroundColor: color };
-
   return (
     <View style={{ width: size, height: size }}>
       <View style={[piece, { borderRadius: a / 2, left: off, top: off }]} />
@@ -114,7 +132,6 @@ function ProductDetail() {
   const { product: passedProduct, productId } = route.params || {};
   const { isDarkMode } = useDarkMode();
   const { t, i18n } = useTranslation();
-
   const isRTL = i18n.language === 'ar' || I18nManager.isRTL;
 
   const lookupId = productId || passedProduct?.id;
@@ -134,7 +151,6 @@ function ProductDetail() {
   const storageOptions = product?.storageOptions || [];
   const storagePricing = product?.storagePricing || {};
   const initialStorage = storageOptions.length > 0 ? storageOptions[0] : null;
-
   const [selectedStorage, setSelectedStorage] = useState(initialStorage);
   const [displayedPrice, setDisplayedPrice] = useState(
     initialStorage ? Number(storagePricing[initialStorage]) || 0 : Number(product?.price) || 0
@@ -182,6 +198,7 @@ function ProductDetail() {
     if (img.uri) return !img.uri.includes('via.placeholder.com');
     return false;
   };
+
   const normalize = (img) => (typeof img === 'string' ? { uri: img } : img);
 
   const rawImages = Array.isArray(product.images) ? product.images.filter(isValidSource) : [];
@@ -210,7 +227,6 @@ function ProductDetail() {
       const existing = await AsyncStorage.getItem('favoriteProducts');
       let list = existing ? JSON.parse(existing) : [];
       list = list.filter((fav) => String(fav.id) !== String(id));
-
       if (next) {
         list.push({
           id,
@@ -262,7 +278,6 @@ function ProductDetail() {
       const index = list.findIndex(
         (it) => String(it.id) === String(newItem.id) && (it.storage ?? null) === storage
       );
-
       if (index > -1) {
         list[index] = {
           ...list[index],
@@ -272,7 +287,6 @@ function ProductDetail() {
       } else {
         list.push(newItem);
       }
-
       await AsyncStorage.setItem('cart', JSON.stringify(list));
       navigation.navigate('Cart');
     } catch (e) {
@@ -299,11 +313,14 @@ function ProductDetail() {
             onPress={() => navigation.goBack()}
             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           >
+            {/* ✅ العربي: يمين → | الإنجليزي: شمال ← */}
             <BackArrow size={26} color={iconColor} flip={isRTL} />
           </TouchableOpacity>
+
           <Text style={[styles.headerTitle, isDarkMode && styles.darkText]}>
             {t('Product Details')}
           </Text>
+
           <View style={styles.menuButton} />
         </View>
 
@@ -433,9 +450,7 @@ function ProductDetail() {
           >
             <MinusIcon size={20} color="#fff" />
           </TouchableOpacity>
-
           <Text style={[styles.quantityText, isDarkMode && styles.darkQuantityText]}>{quantity}</Text>
-
           <TouchableOpacity
             style={[styles.quantityButton, isDarkMode && styles.darkQuantityButton]}
             onPress={() => setQuantity((q) => q + 1)}
